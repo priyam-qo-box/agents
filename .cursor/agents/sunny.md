@@ -22,8 +22,16 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Development | jhipster-backend-agent | Generate JHipster microservices backend |
 | Verification | jhipster-verify-agent | Audit backend quality and security |
 | Repair | issue-resolution-agent | Fix issues found by verify agent |
-| Testing | testing-agent | Backend + frontend tests, 95%+ coverage |
-| Test audit | test-verify-agent | Verify test completeness and coverage |
+| Backend tests | backend-unit-test-agent | Isolated unit tests (services, mappers, validators) |
+| Backend tests | backend-integration-test-agent | Repository/DB tests on Testcontainers PostgreSQL |
+| Backend tests | backend-functional-test-agent | REST/API + gateway HTTP contract tests |
+| Backend test audit | backend-test-verify-agent | Verify backend test completeness and coverage |
+| Backend test repair | backend-test-fix-agent | Close backend test gaps |
+| Frontend tests | frontend-unit-test-agent | Isolated unit tests (utils, hooks, stores) |
+| Frontend tests | frontend-integration-test-agent | Component/page tests with MSW, routing, state |
+| Frontend tests | frontend-functional-test-agent | E2E user journeys (Playwright) |
+| Frontend test audit | frontend-test-verify-agent | Verify frontend test completeness and coverage |
+| Frontend test repair | frontend-test-fix-agent | Close frontend test gaps |
 | Production | production-standards-agent | Final security and readiness audit |
 
 ## Workflow you enforce
@@ -35,10 +43,14 @@ Frontend Input
     → context-agent
     → jhipster-verify-agent
     → [loop] issue-resolution-agent → context-agent → jhipster-verify-agent
-    → testing-agent
-    → context-agent
-    → test-verify-agent
-    → [loop] testing-agent → context-agent → test-verify-agent
+    → Backend testing:
+        backend-unit-test-agent → backend-integration-test-agent → backend-functional-test-agent
+        → context-agent → backend-test-verify-agent
+        → [loop] backend-test-fix-agent → context-agent → backend-test-verify-agent
+    → Frontend testing:
+        frontend-unit-test-agent → frontend-integration-test-agent → frontend-functional-test-agent
+        → context-agent → frontend-test-verify-agent
+        → [loop] frontend-test-fix-agent → context-agent → frontend-test-verify-agent
     → production-standards-agent
     → context-agent
     → Final Approval
@@ -47,11 +59,14 @@ Frontend Input
 ## Loop exit phrases (exact match required)
 
 - **Backend approved:** `No issues found. Backend approved.`
-- **Testing satisfied:** `Testing requirements satisfied.`
+- **Backend tests satisfied:** `Backend testing requirements satisfied.`
+- **Frontend tests satisfied:** `Frontend testing requirements satisfied.`
+- **Production approved:** `Final approval granted. System is production-ready.`
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop (`backendVerifyIterations`, `testVerifyIterations` in `state.json`).
+- Max **5 iterations** per loop (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations` in `state.json`).
+- Run backend testing to satisfaction before starting frontend testing.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
 
 ## Non-negotiables you enforce

@@ -28,9 +28,17 @@ These constraints are enforced by every relevant agent:
 | 3 | **JHipster Backend Agent** | `jhipster-backend-agent.md` | Generates the microservices backend | No |
 | 4 | **JHipster Verify Agent** | `jhipster-verify-agent.md` | Audits backend (API, security, architecture, DB) | Yes |
 | 5 | **Issue Resolution Agent** | `issue-resolution-agent.md` | Fixes issues found by the verify agent | No |
-| 6 | **Testing Agent** | `testing-agent.md` | Generates backend + frontend tests | No |
-| 7 | **Test Verify Agent** | `test-verify-agent.md` | Verifies test completeness and >=95% coverage | Yes |
-| 8 | **Production Standards Agent** | `production-standards-agent.md` | Final security/readiness/performance audit | Yes |
+| 6 | **Backend Unit Test Agent** | `backend-unit-test-agent.md` | Isolated unit tests (services, mappers, validators) | No |
+| 7 | **Backend Integration Test Agent** | `backend-integration-test-agent.md` | Repository/DB tests on Testcontainers PostgreSQL | No |
+| 8 | **Backend Functional Test Agent** | `backend-functional-test-agent.md` | REST/API + gateway HTTP contract tests | No |
+| 9 | **Backend Test Verify Agent** | `backend-test-verify-agent.md` | Verifies backend test completeness and >=95% coverage | Yes |
+| 10 | **Backend Test Fix Agent** | `backend-test-fix-agent.md` | Closes backend test gaps | No |
+| 11 | **Frontend Unit Test Agent** | `frontend-unit-test-agent.md` | Isolated unit tests (utils, hooks, stores) | No |
+| 12 | **Frontend Integration Test Agent** | `frontend-integration-test-agent.md` | Component/page tests with MSW, routing, state | No |
+| 13 | **Frontend Functional Test Agent** | `frontend-functional-test-agent.md` | E2E user journeys (Playwright) | No |
+| 14 | **Frontend Test Verify Agent** | `frontend-test-verify-agent.md` | Verifies frontend test completeness and >=95% coverage | Yes |
+| 15 | **Frontend Test Fix Agent** | `frontend-test-fix-agent.md` | Closes frontend test gaps | No |
+| 16 | **Production Standards Agent** | `production-standards-agent.md` | Final security/readiness/performance audit | Yes |
 
 ---
 
@@ -47,18 +55,24 @@ flowchart TD
     User([User: build backend for this frontend]) --> Sunny[Sunny Orchestrator]
     Sunny --> Ctx[(".sunny/context/ shared memory")]
 
-    subgraph dev [Development]
+    subgraph dev [Stage 1 - Development]
         BE[JHipster Backend Agent]
     end
-    subgraph verify [Backend Verification Loop]
+    subgraph verify [Stage 2 - Backend Verification Loop]
         VER[JHipster Verify Agent]
         FIX[Issue Resolution Agent]
     end
-    subgraph test [Testing Loop]
-        TEST[Testing Agent]
-        TVER[Test Verify Agent]
+    subgraph btest [Stage 3 - Backend Testing Loop]
+        BGEN["unit + integration + functional<br/>test agents"]
+        BTV[Backend Test Verify Agent]
+        BTF[Backend Test Fix Agent]
     end
-    subgraph prod [Production]
+    subgraph ftest [Stage 4 - Frontend Testing Loop]
+        FGEN["unit + integration + functional<br/>test agents"]
+        FTV[Frontend Test Verify Agent]
+        FTF[Frontend Test Fix Agent]
+    end
+    subgraph prod [Stage 5 - Production]
         PROD[Production Standards Agent]
     end
 
@@ -66,24 +80,27 @@ flowchart TD
     BE --> VER
     VER -->|"Issues found"| FIX
     FIX --> VER
-    VER -->|"No issues found. Backend approved."| TEST
-    TEST --> TVER
-    TVER -->|"Coverage < 95%"| TEST
-    TVER -->|"Testing requirements satisfied."| PROD
-    PROD --> Final([Final Approval])
+    VER -->|"No issues found. Backend approved."| BGEN
+    BGEN --> BTV
+    BTV -->|"not satisfied"| BTF
+    BTF --> BTV
+    BTV -->|"Backend testing requirements satisfied."| FGEN
+    FGEN --> FTV
+    FTV -->|"not satisfied"| FTF
+    FTF --> FTV
+    FTV -->|"Frontend testing requirements satisfied."| PROD
+    PROD --> Final(["Final Approval<br/>'System is production-ready.'"])
 
     BE -.persist.-> Ctx
     VER -.persist.-> Ctx
     FIX -.persist.-> Ctx
-    TEST -.persist.-> Ctx
-    TVER -.persist.-> Ctx
+    BGEN -.persist.-> Ctx
+    BTV -.persist.-> Ctx
+    BTF -.persist.-> Ctx
+    FGEN -.persist.-> Ctx
+    FTV -.persist.-> Ctx
+    FTF -.persist.-> Ctx
     PROD -.persist.-> Ctx
-    Ctx -.handoff.-> BE
-    Ctx -.handoff.-> VER
-    Ctx -.handoff.-> FIX
-    Ctx -.handoff.-> TEST
-    Ctx -.handoff.-> TVER
-    Ctx -.handoff.-> PROD
 ```
 
 ---
@@ -98,47 +115,62 @@ sequenceDiagram
     participant B as Backend Agent
     participant V as Verify Agent
     participant I as Issue Resolution
-    participant T as Testing Agent
-    participant TV as Test Verify
+    participant BT as Backend Test Agents
+    participant BTV as Backend Test Verify
+    participant FT as Frontend Test Agents
+    participant FTV as Frontend Test Verify
     participant P as Production Standards
 
     U->>S: Frontend + requirements
     S->>C: Intake (create project-context.md, state.json)
 
-    Note over S,B: Phase 1 - Backend generation
+    Note over S,B: Stage 1 - Backend generation
     S->>B: Generate JHipster microservices
-    B->>C: Persist backend-summary.md
+    S->>C: Persist backend-summary.md
 
-    Note over S,I: Phase 2 - Verification loop (max 5)
+    Note over S,I: Stage 2 - Verification loop (max 5)
     loop Until "Backend approved" or max iterations
         S->>V: Audit backend
-        V->>C: Persist verify-report.md
+        S->>C: Persist verify-report.md
         alt Issues found
             S->>I: Fix findings
-            I->>C: Persist issue-resolution-log.md
+            S->>C: Persist issue-resolution-log.md
         else No issues found. Backend approved.
             Note over S: Exit loop
         end
     end
 
-    Note over S,TV: Phase 3 - Testing loop (max 5)
-    S->>T: Generate tests (95% target)
-    T->>C: Persist test-report.md
-    loop Until "Testing requirements satisfied" or max iterations
-        S->>TV: Verify coverage and edge cases
-        TV->>C: Persist test-verify-report.md
-        alt Coverage < 95%
-            S->>T: Add tests for gaps
-            T->>C: Persist test-report.md
-        else Testing requirements satisfied.
+    Note over S,BTV: Stage 3 - Backend testing loop (max 5)
+    S->>BT: unit, then integration, then functional
+    S->>C: Persist backend-test-report.md
+    loop Until "Backend testing requirements satisfied"
+        S->>BTV: Verify backend coverage and layers
+        S->>C: Persist backend-test-verify-report.md
+        alt Not satisfied
+            S->>BT: backend-test-fix-agent closes gaps
+            S->>C: Persist backend-test-fix-log.md
+        else Backend testing requirements satisfied.
             Note over S: Exit loop
         end
     end
 
-    Note over S,P: Phase 4 - Production
+    Note over S,FTV: Stage 4 - Frontend testing loop (max 5)
+    S->>FT: unit, then integration, then functional
+    S->>C: Persist frontend-test-report.md
+    loop Until "Frontend testing requirements satisfied"
+        S->>FTV: Verify frontend coverage and layers
+        S->>C: Persist frontend-test-verify-report.md
+        alt Not satisfied
+            S->>FT: frontend-test-fix-agent closes gaps
+            S->>C: Persist frontend-test-fix-log.md
+        else Frontend testing requirements satisfied.
+            Note over S: Exit loop
+        end
+    end
+
+    Note over S,P: Stage 5 - Production
     S->>P: Final audit
-    P->>C: Persist production-report.md
-    P->>S: Final approval granted
+    S->>C: Persist production-report.md
     S->>U: Summary + run guide
 ```
 
@@ -151,10 +183,11 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | Loop | Exit phrase | Driven by |
 |------|-------------|-----------|
 | Backend verification | `No issues found. Backend approved.` | JHipster Verify Agent |
-| Testing | `Testing requirements satisfied.` | Test Verify Agent |
+| Backend testing | `Backend testing requirements satisfied.` | Backend Test Verify Agent |
+| Frontend testing | `Frontend testing requirements satisfied.` | Frontend Test Verify Agent |
 | Final | `Final approval granted. System is production-ready.` | Production Standards Agent |
 
-Each loop has a **max-iteration cap (default 5)** tracked in `state.json` (`backendVerifyIterations`, `testVerifyIterations`). If a loop hits the cap without the exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
+Each loop has a **max-iteration cap (default 5)** tracked in `state.json` (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`). If a loop hits the cap without the exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
 
 ---
 
@@ -164,14 +197,18 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 
 ```
 .sunny/context/
-├── project-context.md      # Frontend-derived domain model, API contract, auth, requirements
-├── backend-summary.md      # Backend generation output
-├── verify-report.md        # Latest backend verification findings + verdict
-├── issue-resolution-log.md # History of fix cycles
-├── test-report.md          # Latest test generation output + coverage
-├── test-verify-report.md   # Latest test verification findings + verdict
-├── production-report.md     # Final production audit
-└── state.json              # phase, loop counters, lastVerdict, blockers
+├── project-context.md             # Frontend-derived domain model, API contract, auth, requirements
+├── backend-summary.md             # Backend generation output
+├── verify-report.md               # Latest backend verification findings + verdict
+├── issue-resolution-log.md        # History of backend code fix cycles
+├── backend-test-report.md         # Backend test generation output + coverage
+├── backend-test-verify-report.md  # Backend test verification findings + verdict
+├── backend-test-fix-log.md        # History of backend test fix cycles
+├── frontend-test-report.md        # Frontend test generation output + coverage
+├── frontend-test-verify-report.md # Frontend test verification findings + verdict
+├── frontend-test-fix-log.md       # History of frontend test fix cycles
+├── production-report.md           # Final production audit
+└── state.json                     # phase, loop counters, lastVerdict, blockers
 ```
 
 ### `state.json` drives the loops
@@ -179,11 +216,12 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ```json
 {
   "workflowId": "...",
-  "phase": "backend_verify",
+  "phase": "testing_backend",
   "backendVerifyIterations": 2,
-  "testVerifyIterations": 0,
+  "backendTestVerifyIterations": 1,
+  "frontendTestVerifyIterations": 0,
   "maxIterations": 5,
-  "lastVerdict": "Issues found. Backend not approved.",
+  "lastVerdict": "Backend testing requirements not met.",
   "blockers": [],
   "completedAgents": ["context-agent", "jhipster-backend-agent", "jhipster-verify-agent"],
   "updatedAt": "2026-06-12T06:20:00Z"

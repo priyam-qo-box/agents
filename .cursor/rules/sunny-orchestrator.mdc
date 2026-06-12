@@ -23,8 +23,16 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | JHipster Backend Agent | `jhipster-backend-agent` | false |
 | JHipster Verify Agent | `jhipster-verify-agent` | true |
 | Issue Resolution Agent | `issue-resolution-agent` | false |
-| Testing Agent | `testing-agent` | false |
-| Test Verify Agent | `test-verify-agent` | true |
+| Backend Unit Test Agent | `backend-unit-test-agent` | false |
+| Backend Integration Test Agent | `backend-integration-test-agent` | false |
+| Backend Functional Test Agent | `backend-functional-test-agent` | false |
+| Backend Test Verify Agent | `backend-test-verify-agent` | true |
+| Backend Test Fix Agent | `backend-test-fix-agent` | false |
+| Frontend Unit Test Agent | `frontend-unit-test-agent` | false |
+| Frontend Integration Test Agent | `frontend-integration-test-agent` | false |
+| Frontend Functional Test Agent | `frontend-functional-test-agent` | false |
+| Frontend Test Verify Agent | `frontend-test-verify-agent` | true |
+| Frontend Test Fix Agent | `frontend-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
 
 ## Workflow
@@ -36,10 +44,14 @@ Frontend Input → Sunny
   → context-agent
   → jhipster-verify-agent
   → [loop if issues] issue-resolution-agent → context-agent → jhipster-verify-agent
-  → testing-agent
-  → context-agent
-  → test-verify-agent
-  → [loop if <95%] testing-agent → context-agent → test-verify-agent
+  → Backend testing:
+      backend-unit-test-agent → backend-integration-test-agent → backend-functional-test-agent
+      → context-agent → backend-test-verify-agent
+      → [loop if not satisfied] backend-test-fix-agent → context-agent → backend-test-verify-agent
+  → Frontend testing:
+      frontend-unit-test-agent → frontend-integration-test-agent → frontend-functional-test-agent
+      → context-agent → frontend-test-verify-agent
+      → [loop if not satisfied] frontend-test-fix-agent → context-agent → frontend-test-verify-agent
   → production-standards-agent
   → context-agent
   → Final Approval
@@ -71,22 +83,49 @@ repeat:
   7. goto repeat
 ```
 
-## Phase 3 — Testing loop
+## Phase 3A — Backend testing loop
 
-**Exit phrase (must match exactly):** `Testing requirements satisfied.`
+**Exit phrase (must match exactly):** `Backend testing requirements satisfied.`
 
 ```
+Generate once (in order):
+  1. Launch backend-unit-test-agent
+  2. Launch backend-integration-test-agent
+  3. Launch backend-functional-test-agent
+  4. Launch context-agent to persist backend-test-report.md
+
 repeat:
-  1. Launch testing-agent with context handoff
-  2. Launch context-agent to persist test-report.md
-  3. Launch test-verify-agent (readonly)
-  4. Launch context-agent to persist test-verify-report.md
-  5. Read state.json — if lastVerdict == exit phrase → break
-  6. If testVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
-  7. goto repeat (skip testing-agent on first iteration only if tests don't exist yet — always run testing-agent before first verify)
+  5. Launch backend-test-verify-agent (readonly) with context handoff
+  6. Launch context-agent to persist backend-test-verify-report.md
+  7. Read state.json — if lastVerdict == exit phrase → break to Phase 3B
+  8. If backendTestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  9. Launch backend-test-fix-agent with the verify findings
+  10. Launch context-agent to append backend-test-fix-log.md
+  11. goto repeat
 ```
 
-On first entry to Phase 3, always run **testing-agent** before the first **test-verify-agent**.
+## Phase 3B — Frontend testing loop
+
+**Exit phrase (must match exactly):** `Frontend testing requirements satisfied.`
+
+```
+Generate once (in order):
+  1. Launch frontend-unit-test-agent
+  2. Launch frontend-integration-test-agent
+  3. Launch frontend-functional-test-agent
+  4. Launch context-agent to persist frontend-test-report.md
+
+repeat:
+  5. Launch frontend-test-verify-agent (readonly) with context handoff
+  6. Launch context-agent to persist frontend-test-verify-report.md
+  7. Read state.json — if lastVerdict == exit phrase → break to Phase 4
+  8. If frontendTestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  9. Launch frontend-test-fix-agent with the verify findings
+  10. Launch context-agent to append frontend-test-fix-log.md
+  11. goto repeat
+```
+
+Run Phase 3A to completion (backend tests satisfied) before starting Phase 3B.
 
 ## Phase 4 — Production standards
 
