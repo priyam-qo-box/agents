@@ -35,6 +35,8 @@ If prerequisites are not met, emit `Final approval blocked.` with reasons — do
   ```
   followed by findings. Medium/low items may be listed as recommendations without blocking if team policy allows — default: **block on any high**.
 
+When blocked, your findings are routed to the **production-fix-agent**, which remediates them; then you are re-run to audit from scratch. This verify -> fix -> re-verify loop repeats (max 5 iterations, tracked as `productionVerifyIterations` in `state.json`) until you emit `Final approval granted. System is production-ready.` or the cap is hit and Sunny escalates. Tag every finding with an ID (`PR001`, ...), severity, and category so the fix agent can act on it.
+
 ---
 
 ## Audit categories

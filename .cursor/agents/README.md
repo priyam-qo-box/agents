@@ -39,6 +39,7 @@ These constraints are enforced by every relevant agent:
 | 14 | **Frontend Test Verify Agent** | `frontend-test-verify-agent.md` | Verifies frontend test completeness and >=95% coverage | Yes |
 | 15 | **Frontend Test Fix Agent** | `frontend-test-fix-agent.md` | Closes frontend test gaps | No |
 | 16 | **Production Standards Agent** | `production-standards-agent.md` | Final security/readiness/performance audit | Yes |
+| 17 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
 
 ---
 
@@ -72,8 +73,9 @@ flowchart TD
         FTV[Frontend Test Verify Agent]
         FTF[Frontend Test Fix Agent]
     end
-    subgraph prod [Stage 5 - Production]
+    subgraph prod [Stage 5 - Production Loop]
         PROD[Production Standards Agent]
+        PFIX[Production Fix Agent]
     end
 
     Sunny --> BE
@@ -89,7 +91,9 @@ flowchart TD
     FTV -->|"not satisfied"| FTF
     FTF --> FTV
     FTV -->|"Frontend testing requirements satisfied."| PROD
-    PROD --> Final(["Final Approval<br/>'System is production-ready.'"])
+    PROD -->|"blocked"| PFIX
+    PFIX --> PROD
+    PROD -->|"Final approval granted."| Final(["Final Approval<br/>System is production-ready."])
 
     BE -.persist.-> Ctx
     VER -.persist.-> Ctx
@@ -101,6 +105,7 @@ flowchart TD
     FTV -.persist.-> Ctx
     FTF -.persist.-> Ctx
     PROD -.persist.-> Ctx
+    PFIX -.persist.-> Ctx
 ```
 
 ---
@@ -120,6 +125,7 @@ sequenceDiagram
     participant FT as Frontend Test Agents
     participant FTV as Frontend Test Verify
     participant P as Production Standards
+    participant PF as Production Fix
 
     U->>S: Frontend + requirements
     S->>C: Intake (create project-context.md, state.json)
@@ -168,9 +174,17 @@ sequenceDiagram
         end
     end
 
-    Note over S,P: Stage 5 - Production
-    S->>P: Final audit
-    S->>C: Persist production-report.md
+    Note over S,PF: Stage 5 - Production loop (max 5)
+    loop Until "Final approval granted" or max iterations
+        S->>P: Final audit
+        S->>C: Persist production-report.md
+        alt Blocked
+            S->>PF: Remediate findings
+            S->>C: Persist production-fix-log.md
+        else Final approval granted. System is production-ready.
+            Note over S: Exit loop
+        end
+    end
     S->>U: Summary + run guide
 ```
 
@@ -185,9 +199,9 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | Backend verification | `No issues found. Backend approved.` | JHipster Verify Agent |
 | Backend testing | `Backend testing requirements satisfied.` | Backend Test Verify Agent |
 | Frontend testing | `Frontend testing requirements satisfied.` | Frontend Test Verify Agent |
-| Final | `Final approval granted. System is production-ready.` | Production Standards Agent |
+| Production | `Final approval granted. System is production-ready.` | Production Standards Agent |
 
-Each loop has a **max-iteration cap (default 5)** tracked in `state.json` (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`). If a loop hits the cap without the exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
+Each loop has a **max-iteration cap (default 5)** tracked in `state.json` (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`, `productionVerifyIterations`). If a loop hits the cap without the exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
 
 ---
 
@@ -207,7 +221,8 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ├── frontend-test-report.md        # Frontend test generation output + coverage
 ├── frontend-test-verify-report.md # Frontend test verification findings + verdict
 ├── frontend-test-fix-log.md       # History of frontend test fix cycles
-├── production-report.md           # Final production audit
+├── production-report.md           # Latest production audit findings + verdict
+├── production-fix-log.md          # History of production remediation cycles
 └── state.json                     # phase, loop counters, lastVerdict, blockers
 ```
 
@@ -220,6 +235,7 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
   "backendVerifyIterations": 2,
   "backendTestVerifyIterations": 1,
   "frontendTestVerifyIterations": 0,
+  "productionVerifyIterations": 0,
   "maxIterations": 5,
   "lastVerdict": "Backend testing requirements not met.",
   "blockers": [],

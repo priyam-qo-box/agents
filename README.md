@@ -33,6 +33,7 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── frontend-test-verify-agent.md      # Verifies frontend tests (readonly)
     ├── frontend-test-fix-agent.md         # Closes frontend test gaps
     ├── production-standards-agent.md      # Final production audit (readonly)
+    ├── production-fix-agent.md            # Remediates production audit findings
     └── documentation.md                   # Standalone: Swagger + Postman + Javadoc
 ```
 
@@ -62,6 +63,7 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | **Frontend Test Verify Agent** | Verifies frontend tests, edge cases, 95%+ coverage | Yes |
 | **Frontend Test Fix Agent** | Closes frontend test gaps | No |
 | **Production Standards Agent** | Final security / readiness / performance audit | Yes |
+| **Production Fix Agent** | Remediates production audit findings | No |
 
 ### Standalone (not orchestrated by Sunny)
 
@@ -83,11 +85,12 @@ flowchart LR
     BTL -->|"not satisfied"| BFIX[Fix tests] --> BTL
     BTL -->|"Backend tests satisfied"| FTL{Frontend test loop}
     FTL -->|"not satisfied"| FFIX[Fix tests] --> FTL
-    FTL -->|"Frontend tests satisfied"| PROD[Production audit]
-    PROD --> DONE([Production-ready])
+    FTL -->|"Frontend tests satisfied"| PL{Production loop}
+    PL -->|"blocked"| PFIX[Fix production] --> PL
+    PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-Backend tests use separate unit, integration, and functional agents; frontend tests likewise. Each loop breaks only on an **exact verdict phrase**, and caps at **5 iterations** before escalating to the user:
+Backend tests use separate unit, integration, and functional agents; frontend tests likewise. Every phase — including production — runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|

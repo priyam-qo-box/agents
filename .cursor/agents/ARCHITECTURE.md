@@ -1,6 +1,6 @@
 # Sunny Orchestrator — Architecture & Workflow
 
-Visual reference for the Sunny multi-agent system: component architecture, control flow, the verification/testing loops, shared-memory data flow, and state transitions.
+Visual reference for the Sunny multi-agent system: component architecture, control flow, the verification/testing/production loops, shared-memory data flow, and state transitions.
 
 > For prose explanation and run instructions, see [`README.md`](README.md).
 
@@ -20,7 +20,7 @@ flowchart TB
         S2["Stage 2 - Verify backend (readonly)<br/>jhipster-verify-agent<br/>fix: issue-resolution-agent"]
         S3["Stage 3 - Backend tests<br/>unit + integration + functional<br/>verify: backend-test-verify-agent (readonly)<br/>fix: backend-test-fix-agent"]
         S4["Stage 4 - Frontend tests<br/>unit + integration + functional<br/>verify: frontend-test-verify-agent (readonly)<br/>fix: frontend-test-fix-agent"]
-        S5["Stage 5 - Production audit (readonly)<br/>production-standards-agent"]
+        S5["Stage 5 - Production (readonly audit)<br/>production-standards-agent<br/>fix: production-fix-agent"]
         S1 --> S2 --> S3 --> S4 --> S5
     end
 
@@ -34,6 +34,59 @@ flowchart TB
 
     pipeline -.output after each stage.-> Ctx
     Ctx -.trimmed handoff to next stage.-> pipeline
+```
+
+### 1.1 Agents and their responsibilities
+
+Each agent with its key points, grouped by stage. Readonly agents only audit and report; all others write code/tests/config.
+
+```mermaid
+flowchart TB
+    subgraph orch [Orchestration and Memory]
+        direction LR
+        DRV["Sunny / Driver<br/>• Orchestrates all 4 loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
+        CTX["context-agent<br/>• Sole writer of .sunny/context<br/>• Structured summaries + state.json<br/>• Trims handoffs to next agent<br/>• Tracks phase + iteration counters"]
+    end
+
+    subgraph s12 [Stage 1-2 - Backend build and verify]
+        direction LR
+        GEN["jhipster-backend-agent<br/>• Microservices: gateway + services + registry<br/>• PostgreSQL + Liquibase<br/>• JWT/OAuth2 + RBAC, Docker<br/>• No mock/fake data"]
+        VER["jhipster-verify-agent - readonly<br/>• REST/OpenAPI/RFC7807 audit<br/>• Auth + vulnerability checks<br/>• Microservices + DB integrity<br/>• Exit: No issues found. Backend approved."]
+        ISS["issue-resolution-agent<br/>• Fixes every verify finding<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
+        GEN --> VER
+        VER -->|issues| ISS --> VER
+    end
+
+    subgraph s3 [Stage 3 - Backend testing]
+        direction LR
+        BU["backend-unit-test-agent<br/>• JUnit5 + Mockito<br/>• Services, mappers, validators<br/>• Fully mocked/isolated<br/>• Unit layer to 95%"]
+        BI["backend-integration-test-agent<br/>• Testcontainers PostgreSQL<br/>• Repos, queries, migrations<br/>• Real DB, no H2<br/>• Integration layer to 95%"]
+        BF["backend-functional-test-agent<br/>• REST Assured / MockMvc<br/>• Endpoints, auth, pagination<br/>• ProblemDetails + gateway E2E"]
+        BTV["backend-test-verify-agent - readonly<br/>• Runs coverage tools<br/>• Checks 3 layers + edge cases<br/>• >=95% line + branch<br/>• Exit: Backend testing requirements satisfied."]
+        BTF["backend-test-fix-agent<br/>• Closes verify-reported gaps<br/>• Adds/repairs tests<br/>• No gate lowering<br/>• Returns for re-verify"]
+        BU --> BI --> BF --> BTV
+        BTV -->|gaps| BTF --> BTV
+    end
+
+    subgraph s4 [Stage 4 - Frontend testing]
+        direction LR
+        FU["frontend-unit-test-agent<br/>• Vitest/Jest<br/>• Utils, hooks, stores<br/>• Isolated<br/>• Unit layer to 95%"]
+        FI["frontend-integration-test-agent<br/>• Testing Library + MSW<br/>• Components, pages, routing<br/>• Events + loading/error states<br/>• Integration layer to 95%"]
+        FF["frontend-functional-test-agent<br/>• Playwright E2E<br/>• Critical user journeys<br/>• Login, CRUD, navigation<br/>• Measured separately"]
+        FTV["frontend-test-verify-agent - readonly<br/>• Runs coverage tools<br/>• Checks 3 layers + edge cases<br/>• >=95% line + branch<br/>• Exit: Frontend testing requirements satisfied."]
+        FTF["frontend-test-fix-agent<br/>• Closes verify-reported gaps<br/>• Adds/repairs tests<br/>• No threshold lowering<br/>• Returns for re-verify"]
+        FU --> FI --> FF --> FTV
+        FTV -->|gaps| FTF --> FTV
+    end
+
+    subgraph s5 [Stage 5 - Production]
+        direction LR
+        PS["production-standards-agent - readonly<br/>• Security + readiness audit<br/>• Industry standards + performance<br/>• Requires prior approved verdicts<br/>• Exit: Final approval granted. System is production-ready."]
+        PF["production-fix-agent<br/>• Remediates PR findings<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
+        PS -->|blocked| PF --> PS
+    end
+
+    orch --> s12 --> s3 --> s4 --> s5
 ```
 
 ---
@@ -75,7 +128,11 @@ flowchart TD
 
     FSat -->|Yes| Prod[production-standards-agent]
     Prod --> P10["context-agent<br/>production-report.md"]
-    P10 --> Final(["Final Approval<br/>'Final approval granted.<br/>System is production-ready.'"])
+    P10 --> PSat{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
+    PSat -->|No| CapP{"productionVerifyIterations<br/>>= 5?"}
+    CapP -->|No| PFix[production-fix-agent] --> P11["context-agent<br/>production-fix-log.md"] --> Prod
+    CapP -->|Yes| Blocked
+    PSat -->|Yes| Final(["Final Approval<br/>System is production-ready."])
 ```
 
 ---
@@ -130,9 +187,23 @@ flowchart LR
     F --> A
 ```
 
+## 6. Production loop (detail)
+
+```mermaid
+flowchart LR
+    A[production-standards-agent] --> B["context-agent<br/>production-report.md"]
+    B --> C{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
+    C -->|Yes| Exit([Final Approval])
+    C -->|No| D{productionVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Blocked - escalate])
+    D -->|No| E[production-fix-agent]
+    E --> F["context-agent<br/>production-fix-log.md"]
+    F --> A
+```
+
 ---
 
-## 6. Phase sequence (who talks to whom, when)
+## 7. Phase sequence (who talks to whom, when)
 
 ```mermaid
 sequenceDiagram
@@ -148,6 +219,7 @@ sequenceDiagram
     participant FT as Frontend Test Agents
     participant FTV as Frontend Test Verify
     participant P as Production Standards
+    participant PF as Production Fix
 
     U->>S: Frontend + requirements
     S->>C: Intake (project-context.md, state.json)
@@ -210,10 +282,19 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 5 - Production
-    S->>P: Final audit
-    P-->>S: production report + verdict
-    S->>C: Persist production-report.md
+    note right of S: Stage 5 - Production (max 5)
+    loop until "Final approval granted"
+        S->>P: Final audit
+        P-->>S: production report + verdict
+        S->>C: Persist production-report.md
+        alt Blocked and iter < 5
+            S->>PF: Remediate findings
+            PF-->>S: fix summary
+            S->>C: Persist production-fix-log.md
+        else Approved or max iterations
+            note over S: break or blocked
+        end
+    end
     end
 
     S->>U: Summary + run guide
@@ -221,7 +302,7 @@ sequenceDiagram
 
 ---
 
-## 7. Shared-memory data flow
+## 8. Shared-memory data flow
 
 Only the Context Agent writes the store; every other agent reads trimmed handoffs.
 
@@ -239,6 +320,7 @@ flowchart LR
         FTVR[frontend-test-verify-report.md]
         FTFL[frontend-test-fix-log.md]
         PR[production-report.md]
+        PFL[production-fix-log.md]
         ST[state.json]
     end
 
@@ -249,23 +331,35 @@ flowchart LR
     BS --> VER
     VR --> FIX[issue-resolution]
     BS --> FIX
+    IRL --> FIX
     BS --> BTEST[backend test agents]
     PC --> BTEST
+    BTVR --> BTEST
     BTR --> BTV[backend-test-verify]
     BS --> BTV
     BTVR --> BTFIX[backend-test-fix]
+    BTR --> BTFIX
+    BTFL --> BTFIX
     PC --> FTEST[frontend test agents]
+    FTVR --> FTEST
     FTR --> FTV[frontend-test-verify]
     FTVR --> FTFIX[frontend-test-fix]
+    FTR --> FTFIX
+    FTFL --> FTFIX
     BTVR --> PROD[production-standards]
     FTVR --> PROD
     BS --> PROD
+    PR --> PROD
+    PR --> PFIX[production-fix]
+    BS --> PFIX
+    PC --> PFIX
+    PFL --> PFIX
     ST -.drives loop decisions.-> Driver[Sunny driver]
 ```
 
 ---
 
-## 8. Workflow state machine
+## 9. Workflow state machine
 
 `state.json.phase` transitions that the orchestrator follows.
 
@@ -284,12 +378,15 @@ stateDiagram-v2
     testing_frontend --> testing_frontend: frontend tests not satisfied (fix and re-verify)
     testing_frontend --> production: Frontend tests satisfied
 
-    production --> complete: Final approval
+    production --> production_fix: blocked (findings)
+    production_fix --> production: re-audit
+    production --> complete: Final approval granted
     complete --> [*]
 
     backend_verify --> blocked: max iterations
     testing_backend --> blocked: max iterations
     testing_frontend --> blocked: max iterations
+    production --> blocked: max iterations
     blocked --> [*]: escalate to user
 ```
 
@@ -308,4 +405,4 @@ stateDiagram-v2
 | **Backend tests exit** | `Backend testing requirements satisfied.` |
 | **Frontend tests exit** | `Frontend testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop (`backendVerifyIterations` / `backendTestVerifyIterations` / `frontendTestVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
+| **Max iterations** | Default 5 per loop (`backendVerifyIterations` / `backendTestVerifyIterations` / `frontendTestVerifyIterations` / `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |

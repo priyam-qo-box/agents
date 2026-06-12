@@ -34,6 +34,7 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | Frontend Test Verify Agent | `frontend-test-verify-agent` | true |
 | Frontend Test Fix Agent | `frontend-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
+| Production Fix Agent | `production-fix-agent` | false |
 
 ## Workflow
 
@@ -52,8 +53,9 @@ Frontend Input → Sunny
       frontend-unit-test-agent → frontend-integration-test-agent → frontend-functional-test-agent
       → context-agent → frontend-test-verify-agent
       → [loop if not satisfied] frontend-test-fix-agent → context-agent → frontend-test-verify-agent
-  → production-standards-agent
-  → context-agent
+  → Production:
+      production-standards-agent → context-agent
+      → [loop if blocked] production-fix-agent → context-agent → production-standards-agent
   → Final Approval
 ```
 
@@ -127,11 +129,22 @@ repeat:
 
 Run Phase 3A to completion (backend tests satisfied) before starting Phase 3B.
 
-## Phase 4 — Production standards
+## Phase 4 — Production standards loop
 
-1. Launch **production-standards-agent** (readonly) with full context handoff.
-2. Launch **context-agent** to persist `production-report.md`.
-3. Present final summary to user: architecture, coverage, security, production readiness, run guide.
+**Exit phrase (must match exactly):** `Final approval granted. System is production-ready.`
+
+```
+repeat:
+  1. Launch production-standards-agent (readonly) with full context handoff
+  2. Launch context-agent to persist production-report.md
+  3. Read state.json — if lastVerdict == exit phrase → break to Final Approval
+  4. If productionVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  5. Launch production-fix-agent with the production-report findings
+  6. Launch context-agent to append production-fix-log.md
+  7. goto repeat
+```
+
+After the exit phrase, present the final summary to the user: architecture, coverage, security, production readiness, run guide.
 
 ## Task launch template
 

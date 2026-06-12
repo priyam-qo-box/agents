@@ -32,7 +32,8 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Frontend tests | frontend-functional-test-agent | E2E user journeys (Playwright) |
 | Frontend test audit | frontend-test-verify-agent | Verify frontend test completeness and coverage |
 | Frontend test repair | frontend-test-fix-agent | Close frontend test gaps |
-| Production | production-standards-agent | Final security and readiness audit |
+| Production audit | production-standards-agent | Final security and readiness audit |
+| Production repair | production-fix-agent | Remediate production audit findings |
 
 ## Workflow you enforce
 
@@ -51,8 +52,9 @@ Frontend Input
         frontend-unit-test-agent → frontend-integration-test-agent → frontend-functional-test-agent
         → context-agent → frontend-test-verify-agent
         → [loop] frontend-test-fix-agent → context-agent → frontend-test-verify-agent
-    → production-standards-agent
-    → context-agent
+    → Production:
+        production-standards-agent → context-agent
+        → [loop] production-fix-agent → context-agent → production-standards-agent
     → Final Approval
 ```
 
@@ -65,7 +67,7 @@ Frontend Input
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations` in `state.json`).
+- Max **5 iterations** per loop (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`, `productionVerifyIterations` in `state.json`).
 - Run backend testing to satisfaction before starting frontend testing.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
 
