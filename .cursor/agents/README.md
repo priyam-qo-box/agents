@@ -40,6 +40,8 @@ Cursor sub-agents run in **isolation** and are launched via the Task tool. Becau
 
 The golden rule: **after every agent runs, the Context Agent persists its output before the next agent starts.** No agent assumes in-memory state from a previous step.
 
+> For the full set of architecture, loop, data-flow, and state-machine diagrams, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ```mermaid
 flowchart TD
     User([User: build backend for this frontend]) --> Sunny[Sunny Orchestrator]
