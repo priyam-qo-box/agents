@@ -11,7 +11,7 @@ You are the **Backend Functional Test Agent** in the Sunny multi-agent system. Y
 ## Before you start
 
 1. Read `.sunny/context/project-context.md` (API contract), `.sunny/context/backend-summary.md`, and `.sunny/context/state.json`.
-2. If re-running after a fix cycle, read `.sunny/context/backend-test-verify-report.md` for the functional-layer gaps.
+2. If re-running after a fix cycle, read `.sunny/context/backend-functional-test-verify-report.md` for the functional-layer gaps.
 3. Do **not** write to `.sunny/context/` — return structured output for the Context Agent.
 
 ## Scope (functional / API layer only)
@@ -87,4 +87,4 @@ class OrderApiIT {
 **Assumptions/exclusions:** {list}
 ```
 
-Produce real test files. The Backend Test Verify Agent re-measures from scratch — assume no memory of this run.
+Produce real test files. The Backend Functional Test Verify Agent re-measures from scratch — assume no memory of this run.

@@ -6,6 +6,26 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ---
 
+## 0. System at a glance
+
+**25 orchestrated agents** (plus a standalone documentation agent), driven through **8 bounded verify/fix loops**.
+
+| Group | Count | Agents |
+|-------|-------|--------|
+| Orchestration & memory | 2 | `sunny`, `context-agent` |
+| Backend build & verify | 3 | `jhipster-backend-agent`, `jhipster-verify-agent` (readonly), `issue-resolution-agent` |
+| Backend tests (3 layers × gen/verify/fix) | 9 | `backend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
+| Frontend tests (3 layers × gen/verify/fix) | 9 | `frontend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
+| Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
+| Standalone (not orchestrated) | 1 | `documentation` |
+
+- **8 verify/fix loops:** backend code + 3 backend test layers + 3 frontend test layers + production.
+- **8 readonly auditors:** `jhipster-verify-agent`, the 6 per-layer test-verify agents, and `production-standards-agent`.
+- **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
+- **One writer of shared memory:** `context-agent` owns `.sunny/context/`.
+
+---
+
 ## 1. System architecture (pipeline order)
 
 The agents run as an **ordered pipeline**: generate the backend, verify and fix it, then generate and verify tests (backend, then frontend), then the final production audit. The Driver (main chat agent) launches each stage via the Task tool, and the Context Agent persists output between every stage. Read top to bottom — generation always precedes verification.
@@ -18,8 +38,8 @@ flowchart TB
         direction TB
         S1["Stage 1 - Generate backend<br/>jhipster-backend-agent"]
         S2["Stage 2 - Verify backend (readonly)<br/>jhipster-verify-agent<br/>fix: issue-resolution-agent"]
-        S3["Stage 3 - Backend tests<br/>unit + integration + functional<br/>verify: backend-test-verify-agent (readonly)<br/>fix: backend-test-fix-agent"]
-        S4["Stage 4 - Frontend tests<br/>unit + integration + functional<br/>verify: frontend-test-verify-agent (readonly)<br/>fix: frontend-test-fix-agent"]
+        S3["Stage 3 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
+        S4["Stage 4 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
         S5["Stage 5 - Production (readonly audit)<br/>production-standards-agent<br/>fix: production-fix-agent"]
         S1 --> S2 --> S3 --> S4 --> S5
     end
@@ -44,7 +64,7 @@ Each agent with its key points, grouped by stage. Readonly agents only audit and
 flowchart TB
     subgraph orch [Orchestration and Memory]
         direction LR
-        DRV["Sunny / Driver<br/>• Orchestrates all 4 loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
+        DRV["Sunny / Driver<br/>• Orchestrates all 8 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
         CTX["context-agent<br/>• Sole writer of .sunny/context<br/>• Structured summaries + state.json<br/>• Trims handoffs to next agent<br/>• Tracks phase + iteration counters"]
     end
 
@@ -57,26 +77,62 @@ flowchart TB
         VER -->|issues| ISS --> VER
     end
 
-    subgraph s3 [Stage 3 - Backend testing]
-        direction LR
-        BU["backend-unit-test-agent<br/>• JUnit5 + Mockito<br/>• Services, mappers, validators<br/>• Fully mocked/isolated<br/>• Unit layer to 95%"]
-        BI["backend-integration-test-agent<br/>• Testcontainers PostgreSQL<br/>• Repos, queries, migrations<br/>• Real DB, no H2<br/>• Integration layer to 95%"]
-        BF["backend-functional-test-agent<br/>• REST Assured / MockMvc<br/>• Endpoints, auth, pagination<br/>• ProblemDetails + gateway E2E"]
-        BTV["backend-test-verify-agent - readonly<br/>• Runs coverage tools<br/>• Checks 3 layers + edge cases<br/>• >=95% line + branch<br/>• Exit: Backend testing requirements satisfied."]
-        BTF["backend-test-fix-agent<br/>• Closes verify-reported gaps<br/>• Adds/repairs tests<br/>• No gate lowering<br/>• Returns for re-verify"]
-        BU --> BI --> BF --> BTV
-        BTV -->|gaps| BTF --> BTV
+    subgraph s3 [Stage 3 - Backend testing - per-layer verify and fix]
+        direction TB
+        subgraph s3u [Unit layer]
+            direction LR
+            BU["backend-unit-test-agent<br/>• JUnit5 + Mockito<br/>• Services, mappers, validators<br/>• Fully mocked/isolated"]
+            BUV["backend-unit-test-verify-agent - readonly<br/>• Unit coverage + isolation<br/>• Exit: Backend unit testing requirements satisfied."]
+            BUF["backend-unit-test-fix-agent<br/>• Closes unit-layer gaps"]
+            BU --> BUV
+            BUV -->|gaps| BUF --> BUV
+        end
+        subgraph s3i [Integration layer]
+            direction LR
+            BI["backend-integration-test-agent<br/>• Testcontainers PostgreSQL<br/>• Repos, queries, migrations<br/>• Real DB, no H2"]
+            BIV["backend-integration-test-verify-agent - readonly<br/>• Real-DB + integration coverage<br/>• Exit: Backend integration testing requirements satisfied."]
+            BIF["backend-integration-test-fix-agent<br/>• Closes integration-layer gaps"]
+            BI --> BIV
+            BIV -->|gaps| BIF --> BIV
+        end
+        subgraph s3f [Functional layer]
+            direction LR
+            BF["backend-functional-test-agent<br/>• REST Assured / MockMvc<br/>• Endpoints, auth, pagination<br/>• ProblemDetails + gateway E2E"]
+            BFV["backend-functional-test-verify-agent - readonly<br/>• Endpoint + contract coverage<br/>• Exit: Backend functional testing requirements satisfied."]
+            BFF["backend-functional-test-fix-agent<br/>• Closes functional-layer gaps"]
+            BF --> BFV
+            BFV -->|gaps| BFF --> BFV
+        end
+        s3u --> s3i --> s3f
     end
 
-    subgraph s4 [Stage 4 - Frontend testing]
-        direction LR
-        FU["frontend-unit-test-agent<br/>• Vitest/Jest<br/>• Utils, hooks, stores<br/>• Isolated<br/>• Unit layer to 95%"]
-        FI["frontend-integration-test-agent<br/>• Testing Library + MSW<br/>• Components, pages, routing<br/>• Events + loading/error states<br/>• Integration layer to 95%"]
-        FF["frontend-functional-test-agent<br/>• Playwright E2E<br/>• Critical user journeys<br/>• Login, CRUD, navigation<br/>• Measured separately"]
-        FTV["frontend-test-verify-agent - readonly<br/>• Runs coverage tools<br/>• Checks 3 layers + edge cases<br/>• >=95% line + branch<br/>• Exit: Frontend testing requirements satisfied."]
-        FTF["frontend-test-fix-agent<br/>• Closes verify-reported gaps<br/>• Adds/repairs tests<br/>• No threshold lowering<br/>• Returns for re-verify"]
-        FU --> FI --> FF --> FTV
-        FTV -->|gaps| FTF --> FTV
+    subgraph s4 [Stage 4 - Frontend testing - per-layer verify and fix]
+        direction TB
+        subgraph s4u [Unit layer]
+            direction LR
+            FU["frontend-unit-test-agent<br/>• Vitest/Jest<br/>• Utils, hooks, stores<br/>• Isolated"]
+            FUV["frontend-unit-test-verify-agent - readonly<br/>• Unit coverage + isolation<br/>• Exit: Frontend unit testing requirements satisfied."]
+            FUF["frontend-unit-test-fix-agent<br/>• Closes unit-layer gaps"]
+            FU --> FUV
+            FUV -->|gaps| FUF --> FUV
+        end
+        subgraph s4i [Integration / component layer]
+            direction LR
+            FI["frontend-integration-test-agent<br/>• Testing Library + MSW<br/>• Components, pages, routing<br/>• Events + loading/error states"]
+            FIV["frontend-integration-test-verify-agent - readonly<br/>• Component coverage + states<br/>• Exit: Frontend integration testing requirements satisfied."]
+            FIF["frontend-integration-test-fix-agent<br/>• Closes component-layer gaps"]
+            FI --> FIV
+            FIV -->|gaps| FIF --> FIV
+        end
+        subgraph s4f [Functional / E2E layer]
+            direction LR
+            FF["frontend-functional-test-agent<br/>• Playwright E2E<br/>• Critical user journeys<br/>• Login, CRUD, navigation"]
+            FFV["frontend-functional-test-verify-agent - readonly<br/>• Journey coverage in real browser<br/>• Exit: Frontend functional testing requirements satisfied."]
+            FFF["frontend-functional-test-fix-agent<br/>• Closes E2E journey gaps"]
+            FF --> FFV
+            FFV -->|gaps| FFF --> FFV
+        end
+        s4u --> s4i --> s4f
     end
 
     subgraph s5 [Stage 5 - Production]
@@ -108,24 +164,16 @@ flowchart TD
     CapB -->|No| Fix[issue-resolution-agent] --> P3["context-agent<br/>issue-resolution-log.md"] --> Verify
     CapB -->|Yes| Blocked["phase = blocked<br/>escalate to user"]
 
-    Approved -->|Yes| BGen["backend test generation<br/>unit -> integration -> functional"]
-    BGen --> P4["context-agent<br/>backend-test-report.md"]
-    P4 --> BVer[backend-test-verify-agent]
-    BVer --> P5["context-agent<br/>backend-test-verify-report.md"]
-    P5 --> BSat{"lastVerdict ==<br/>'Backend testing<br/>requirements satisfied.'?"}
-    BSat -->|No| CapBT{"backendTestVerifyIterations<br/>>= 5?"}
-    CapBT -->|No| BFix[backend-test-fix-agent] --> P6["context-agent<br/>backend-test-fix-log.md"] --> BVer
-    CapBT -->|Yes| Blocked
+    Approved -->|Yes| BGen["backend test generation<br/>unit + integration + functional<br/>context-agent: backend-test-report.md"]
+    BGen --> BLoop["Backend per-layer verify/fix loops<br/>(see Section 4)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
+    BLoop --> BSat{"all 3 backend layers<br/>satisfied?"}
+    BSat -->|No, any layer hit cap 5| Blocked
+    BSat -->|Yes| FGen
 
-    BSat -->|Yes| FGen["frontend test generation<br/>unit -> integration -> functional"]
-    FGen --> P7["context-agent<br/>frontend-test-report.md"]
-    P7 --> FVer[frontend-test-verify-agent]
-    FVer --> P8["context-agent<br/>frontend-test-verify-report.md"]
-    P8 --> FSat{"lastVerdict ==<br/>'Frontend testing<br/>requirements satisfied.'?"}
-    FSat -->|No| CapFT{"frontendTestVerifyIterations<br/>>= 5?"}
-    CapFT -->|No| FFix[frontend-test-fix-agent] --> P9["context-agent<br/>frontend-test-fix-log.md"] --> FVer
-    CapFT -->|Yes| Blocked
-
+    FGen["frontend test generation<br/>unit + integration + functional<br/>context-agent: frontend-test-report.md"]
+    FGen --> FLoop["Frontend per-layer verify/fix loops<br/>(see Section 5)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
+    FLoop --> FSat{"all 3 frontend layers<br/>satisfied?"}
+    FSat -->|No, any layer hit cap 5| Blocked
     FSat -->|Yes| Prod[production-standards-agent]
     Prod --> P10["context-agent<br/>production-report.md"]
     P10 --> PSat{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
@@ -151,40 +199,62 @@ flowchart LR
     F --> A
 ```
 
-## 4. Backend testing loop (detail)
+## 4. Backend testing loops (detail)
 
-Three generation agents run once in order, then verify <-> fix until satisfied.
+The three generation agents run **once** in order. Then each layer has its **own verify/fix loop** with its own exit phrase and counter, run in order: unit → integration → functional. Each layer's fix agent only touches that layer.
 
 ```mermaid
-flowchart LR
+flowchart TB
     G1[backend-unit-test-agent] --> G2[backend-integration-test-agent] --> G3[backend-functional-test-agent]
     G3 --> P["context-agent<br/>backend-test-report.md"]
-    P --> A[backend-test-verify-agent]
-    A --> B["context-agent<br/>backend-test-verify-report.md"]
-    B --> C{"lastVerdict ==<br/>'Backend testing<br/>requirements satisfied.'?"}
-    C -->|Yes| Exit([Exit to Frontend tests])
-    C -->|No| D{backendTestVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
-    D -->|No| E[backend-test-fix-agent]
-    E --> F["context-agent<br/>backend-test-fix-log.md"]
-    F --> A
+
+    P --> UA[backend-unit-test-verify-agent]
+    UA --> UB{"unit satisfied?<br/>'Backend unit testing<br/>requirements satisfied.'"}
+    UB -->|No| UD{backendUnitTestVerifyIterations >= 5?}
+    UD -->|Yes| Stop([Blocked - escalate])
+    UD -->|No| UE[backend-unit-test-fix-agent] --> UF["context-agent<br/>backend-unit-test-fix-log.md"] --> UA
+    UB -->|Yes| IA[backend-integration-test-verify-agent]
+
+    IA --> IB{"integration satisfied?<br/>'Backend integration testing<br/>requirements satisfied.'"}
+    IB -->|No| ID{backendIntegrationTestVerifyIterations >= 5?}
+    ID -->|Yes| Stop
+    ID -->|No| IE[backend-integration-test-fix-agent] --> IF["context-agent<br/>backend-integration-test-fix-log.md"] --> IA
+    IB -->|Yes| FA[backend-functional-test-verify-agent]
+
+    FA --> FB{"functional satisfied?<br/>'Backend functional testing<br/>requirements satisfied.'"}
+    FB -->|No| FD{backendFunctionalTestVerifyIterations >= 5?}
+    FD -->|Yes| Stop
+    FD -->|No| FE[backend-functional-test-fix-agent] --> FF["context-agent<br/>backend-functional-test-fix-log.md"] --> FA
+    FB -->|Yes| Exit([Exit to Frontend tests])
 ```
 
-## 5. Frontend testing loop (detail)
+## 5. Frontend testing loops (detail)
+
+Same per-layer structure for the frontend: generate once, then unit → integration/component → functional/E2E, each with its own verify/fix loop, exit phrase, and counter.
 
 ```mermaid
-flowchart LR
+flowchart TB
     G1[frontend-unit-test-agent] --> G2[frontend-integration-test-agent] --> G3[frontend-functional-test-agent]
     G3 --> P["context-agent<br/>frontend-test-report.md"]
-    P --> A[frontend-test-verify-agent]
-    A --> B["context-agent<br/>frontend-test-verify-report.md"]
-    B --> C{"lastVerdict ==<br/>'Frontend testing<br/>requirements satisfied.'?"}
-    C -->|Yes| Exit([Exit to Production])
-    C -->|No| D{frontendTestVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
-    D -->|No| E[frontend-test-fix-agent]
-    E --> F["context-agent<br/>frontend-test-fix-log.md"]
-    F --> A
+
+    P --> UA[frontend-unit-test-verify-agent]
+    UA --> UB{"unit satisfied?<br/>'Frontend unit testing<br/>requirements satisfied.'"}
+    UB -->|No| UD{frontendUnitTestVerifyIterations >= 5?}
+    UD -->|Yes| Stop([Blocked - escalate])
+    UD -->|No| UE[frontend-unit-test-fix-agent] --> UF["context-agent<br/>frontend-unit-test-fix-log.md"] --> UA
+    UB -->|Yes| IA[frontend-integration-test-verify-agent]
+
+    IA --> IB{"integration satisfied?<br/>'Frontend integration testing<br/>requirements satisfied.'"}
+    IB -->|No| ID{frontendIntegrationTestVerifyIterations >= 5?}
+    ID -->|Yes| Stop
+    ID -->|No| IE[frontend-integration-test-fix-agent] --> IF["context-agent<br/>frontend-integration-test-fix-log.md"] --> IA
+    IB -->|Yes| FA[frontend-functional-test-verify-agent]
+
+    FA --> FB{"functional satisfied?<br/>'Frontend functional testing<br/>requirements satisfied.'"}
+    FB -->|No| FD{frontendFunctionalTestVerifyIterations >= 5?}
+    FD -->|Yes| Stop
+    FD -->|No| FE[frontend-functional-test-fix-agent] --> FF["context-agent<br/>frontend-functional-test-fix-log.md"] --> FA
+    FB -->|Yes| Exit([Exit to Production])
 ```
 
 ## 6. Production loop (detail)
@@ -224,21 +294,25 @@ flowchart TD
 
 1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
 2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
-3. **One round = one iteration.** Each verify run increments that loop's counter (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`, `productionVerifyIterations`).
+3. **One round = one iteration.** Each verify run increments that loop's own counter (`backendVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `productionVerifyIterations`).
 4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
 
-### Same mechanism across all four loops
+### Same mechanism across all eight loops
 
 | Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
 |------|----------------------|-----------|---------|-------------|
 | Backend code | `jhipster-verify-agent` | `issue-resolution-agent` | `backendVerifyIterations` | `No issues found. Backend approved.` |
-| Backend tests | `backend-test-verify-agent` | `backend-test-fix-agent` | `backendTestVerifyIterations` | `Backend testing requirements satisfied.` |
-| Frontend tests | `frontend-test-verify-agent` | `frontend-test-fix-agent` | `frontendTestVerifyIterations` | `Frontend testing requirements satisfied.` |
+| Backend unit tests | `backend-unit-test-verify-agent` | `backend-unit-test-fix-agent` | `backendUnitTestVerifyIterations` | `Backend unit testing requirements satisfied.` |
+| Backend integration tests | `backend-integration-test-verify-agent` | `backend-integration-test-fix-agent` | `backendIntegrationTestVerifyIterations` | `Backend integration testing requirements satisfied.` |
+| Backend functional tests | `backend-functional-test-verify-agent` | `backend-functional-test-fix-agent` | `backendFunctionalTestVerifyIterations` | `Backend functional testing requirements satisfied.` |
+| Frontend unit tests | `frontend-unit-test-verify-agent` | `frontend-unit-test-fix-agent` | `frontendUnitTestVerifyIterations` | `Frontend unit testing requirements satisfied.` |
+| Frontend integration tests | `frontend-integration-test-verify-agent` | `frontend-integration-test-fix-agent` | `frontendIntegrationTestVerifyIterations` | `Frontend integration testing requirements satisfied.` |
+| Frontend functional tests | `frontend-functional-test-verify-agent` | `frontend-functional-test-fix-agent` | `frontendFunctionalTestVerifyIterations` | `Frontend functional testing requirements satisfied.` |
 | Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
 
-> Testing loops only run the three generation agents (unit/integration/functional) once at the start; on failure the fix agent adds or repairs the missing tests, then the loop re-verifies — the generators are not re-run.
+> Each side's three generation agents (unit/integration/functional) run once at the start; then each layer has its own verify/fix loop. On failure the layer's fix agent adds or repairs that layer's tests, then the layer re-verifies — the generators are not re-run.
 
 ---
 
@@ -253,10 +327,10 @@ sequenceDiagram
     participant B as Backend Agent
     participant V as Verify Agent
     participant I as Issue Resolution
-    participant BT as Backend Test Agents
-    participant BTV as Backend Test Verify
-    participant FT as Frontend Test Agents
-    participant FTV as Frontend Test Verify
+    participant BT as Backend Test Gen+Fix (per layer)
+    participant BTV as Backend Layer Verifiers
+    participant FT as Frontend Test Gen+Fix (per layer)
+    participant FTV as Frontend Layer Verifiers
     participant P as Production Standards
     participant PF as Production Fix
 
@@ -283,39 +357,39 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 3 - Backend tests (max 5)
-    S->>BT: unit, then integration, then functional
+    note right of S: Stage 3 - Backend tests (generate once, then per-layer loops)
+    S->>BT: Generate unit, integration, functional
     BT-->>S: tests + coverage
     S->>C: Persist backend-test-report.md
-    loop until "Backend testing requirements satisfied"
-        S->>BTV: Verify backend coverage and layers
-        BTV-->>S: report + verdict
-        S->>C: Persist backend-test-verify-report.md
-        alt Not satisfied and iter < 5
-            S->>BT: backend-test-fix-agent closes gaps
+    loop for each layer: unit -> integration -> functional (max 5 each)
+        S->>BTV: Verify this layer's coverage/quality
+        BTV-->>S: report + layer verdict
+        S->>C: Persist backend-{layer}-test-verify-report.md
+        alt Layer not satisfied and iter < 5
+            S->>BT: backend-{layer}-test-fix-agent closes gaps
             BT-->>S: fix summary
-            S->>C: Persist backend-test-fix-log.md
-        else Satisfied or max iterations
-            note over S: break or blocked
+            S->>C: Persist backend-{layer}-test-fix-log.md
+        else Layer satisfied or max iterations
+            note over S: next layer or blocked
         end
     end
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 4 - Frontend tests (max 5)
-    S->>FT: unit, then integration, then functional
+    note right of S: Stage 4 - Frontend tests (generate once, then per-layer loops)
+    S->>FT: Generate unit, integration, functional
     FT-->>S: tests + coverage
     S->>C: Persist frontend-test-report.md
-    loop until "Frontend testing requirements satisfied"
-        S->>FTV: Verify frontend coverage and layers
-        FTV-->>S: report + verdict
-        S->>C: Persist frontend-test-verify-report.md
-        alt Not satisfied and iter < 5
-            S->>FT: frontend-test-fix-agent closes gaps
+    loop for each layer: unit -> integration -> functional (max 5 each)
+        S->>FTV: Verify this layer's coverage/quality
+        FTV-->>S: report + layer verdict
+        S->>C: Persist frontend-{layer}-test-verify-report.md
+        alt Layer not satisfied and iter < 5
+            S->>FT: frontend-{layer}-test-fix-agent closes gaps
             FT-->>S: fix summary
-            S->>C: Persist frontend-test-fix-log.md
-        else Satisfied or max iterations
-            note over S: break or blocked
+            S->>C: Persist frontend-{layer}-test-fix-log.md
+        else Layer satisfied or max iterations
+            note over S: next layer or blocked
         end
     end
     end
@@ -353,11 +427,11 @@ flowchart LR
         VR[verify-report.md]
         IRL[issue-resolution-log.md]
         BTR[backend-test-report.md]
-        BTVR[backend-test-verify-report.md]
-        BTFL[backend-test-fix-log.md]
+        BTV6["backend-{unit,integration,functional}-<br/>test-verify-report.md (x3)"]
+        BTF6["backend-{unit,integration,functional}-<br/>test-fix-log.md (x3)"]
         FTR[frontend-test-report.md]
-        FTVR[frontend-test-verify-report.md]
-        FTFL[frontend-test-fix-log.md]
+        FTV6["frontend-{unit,integration,functional}-<br/>test-verify-report.md (x3)"]
+        FTF6["frontend-{unit,integration,functional}-<br/>test-fix-log.md (x3)"]
         PR[production-report.md]
         PFL[production-fix-log.md]
         ST[state.json]
@@ -371,22 +445,22 @@ flowchart LR
     VR --> FIX[issue-resolution]
     BS --> FIX
     IRL --> FIX
-    BS --> BTEST[backend test agents]
+    BS --> BTEST[backend test gen agents x3]
     PC --> BTEST
-    BTVR --> BTEST
-    BTR --> BTV[backend-test-verify]
-    BS --> BTV
-    BTVR --> BTFIX[backend-test-fix]
+    BTV6 --> BTEST
+    BTR --> BTVA["backend layer verify agents x3"]
+    BS --> BTVA
+    BTV6 --> BTFIX["backend layer fix agents x3"]
     BTR --> BTFIX
-    BTFL --> BTFIX
-    PC --> FTEST[frontend test agents]
-    FTVR --> FTEST
-    FTR --> FTV[frontend-test-verify]
-    FTVR --> FTFIX[frontend-test-fix]
+    BTF6 --> BTFIX
+    PC --> FTEST[frontend test gen agents x3]
+    FTV6 --> FTEST
+    FTR --> FTVA["frontend layer verify agents x3"]
+    FTV6 --> FTFIX["frontend layer fix agents x3"]
     FTR --> FTFIX
-    FTFL --> FTFIX
-    BTVR --> PROD[production-standards]
-    FTVR --> PROD
+    FTF6 --> FTFIX
+    BTV6 --> PROD[production-standards]
+    FTV6 --> PROD
     BS --> PROD
     PR --> PROD
     PR --> PFIX[production-fix]
@@ -411,11 +485,11 @@ stateDiagram-v2
     issue_resolution --> backend_verify: re-audit
     backend_verify --> testing_backend: Backend approved
 
-    testing_backend --> testing_backend: backend tests not satisfied (fix and re-verify)
-    testing_backend --> testing_frontend: Backend tests satisfied
+    testing_backend --> testing_backend: layer not satisfied (fix and re-verify)
+    testing_backend --> testing_frontend: all 3 backend layers satisfied
 
-    testing_frontend --> testing_frontend: frontend tests not satisfied (fix and re-verify)
-    testing_frontend --> production: Frontend tests satisfied
+    testing_frontend --> testing_frontend: layer not satisfied (fix and re-verify)
+    testing_frontend --> production: all 3 frontend layers satisfied
 
     production --> production_fix: blocked (findings)
     production_fix --> production: re-audit
@@ -429,6 +503,8 @@ stateDiagram-v2
     blocked --> [*]: escalate to user
 ```
 
+> Within `testing_backend` and `testing_frontend`, the layers are verified/fixed in order — unit → integration → functional — each with its own exit phrase and iteration counter. The side advances only when all three layers are satisfied.
+
 ---
 
 ## Legend
@@ -438,10 +514,10 @@ stateDiagram-v2
 | **Driver** | Main chat agent that follows the playbook and launches sub-agents via the Task tool |
 | **Solid arrow** | Control flow / Task launch |
 | **Dotted arrow** | Data flow (persist / handoff) |
-| **readonly agent** | Audits and reports only; makes no code changes (jhipster-verify, backend/frontend-test-verify, production) |
+| **readonly agent** | Audits and reports only; makes no code changes (jhipster-verify, the six per-layer test-verify agents, production-standards) |
 | **Exit phrase** | Exact string in `state.json.lastVerdict` that breaks a loop |
 | **Backend code exit** | `No issues found. Backend approved.` |
-| **Backend tests exit** | `Backend testing requirements satisfied.` |
-| **Frontend tests exit** | `Frontend testing requirements satisfied.` |
+| **Backend test exits** | `Backend unit testing requirements satisfied.` / `Backend integration testing requirements satisfied.` / `Backend functional testing requirements satisfied.` |
+| **Frontend test exits** | `Frontend unit testing requirements satisfied.` / `Frontend integration testing requirements satisfied.` / `Frontend functional testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop (`backendVerifyIterations` / `backendTestVerifyIterations` / `frontendTestVerifyIterations` / `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
+| **Max iterations** | Default 5 per loop; each loop has its own counter (`backendVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |

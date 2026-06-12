@@ -22,16 +22,24 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Development | jhipster-backend-agent | Generate JHipster microservices backend |
 | Verification | jhipster-verify-agent | Audit backend quality and security |
 | Repair | issue-resolution-agent | Fix issues found by verify agent |
-| Backend tests | backend-unit-test-agent | Isolated unit tests (services, mappers, validators) |
-| Backend tests | backend-integration-test-agent | Repository/DB tests on Testcontainers PostgreSQL |
-| Backend tests | backend-functional-test-agent | REST/API + gateway HTTP contract tests |
-| Backend test audit | backend-test-verify-agent | Verify backend test completeness and coverage |
-| Backend test repair | backend-test-fix-agent | Close backend test gaps |
-| Frontend tests | frontend-unit-test-agent | Isolated unit tests (utils, hooks, stores) |
-| Frontend tests | frontend-integration-test-agent | Component/page tests with MSW, routing, state |
-| Frontend tests | frontend-functional-test-agent | E2E user journeys (Playwright) |
-| Frontend test audit | frontend-test-verify-agent | Verify frontend test completeness and coverage |
-| Frontend test repair | frontend-test-fix-agent | Close frontend test gaps |
+| Backend unit | backend-unit-test-agent | Isolated unit tests (services, mappers, validators) |
+| Backend unit | backend-unit-test-verify-agent | Verify backend unit-layer coverage/quality |
+| Backend unit | backend-unit-test-fix-agent | Close backend unit-layer gaps |
+| Backend integration | backend-integration-test-agent | Repository/DB tests on Testcontainers PostgreSQL |
+| Backend integration | backend-integration-test-verify-agent | Verify backend integration-layer coverage/quality |
+| Backend integration | backend-integration-test-fix-agent | Close backend integration-layer gaps |
+| Backend functional | backend-functional-test-agent | REST/API + gateway HTTP contract tests |
+| Backend functional | backend-functional-test-verify-agent | Verify backend functional-layer coverage/quality |
+| Backend functional | backend-functional-test-fix-agent | Close backend functional-layer gaps |
+| Frontend unit | frontend-unit-test-agent | Isolated unit tests (utils, hooks, stores) |
+| Frontend unit | frontend-unit-test-verify-agent | Verify frontend unit-layer coverage/quality |
+| Frontend unit | frontend-unit-test-fix-agent | Close frontend unit-layer gaps |
+| Frontend integration | frontend-integration-test-agent | Component/page tests with MSW, routing, state |
+| Frontend integration | frontend-integration-test-verify-agent | Verify frontend component-layer coverage/quality |
+| Frontend integration | frontend-integration-test-fix-agent | Close frontend component-layer gaps |
+| Frontend functional | frontend-functional-test-agent | E2E user journeys (Playwright) |
+| Frontend functional | frontend-functional-test-verify-agent | Verify frontend E2E journey coverage |
+| Frontend functional | frontend-functional-test-fix-agent | Close frontend E2E gaps |
 | Production audit | production-standards-agent | Final security and readiness audit |
 | Production repair | production-fix-agent | Remediate production audit findings |
 
@@ -44,14 +52,14 @@ Frontend Input
     → context-agent
     → jhipster-verify-agent
     → [loop] issue-resolution-agent → context-agent → jhipster-verify-agent
-    → Backend testing:
-        backend-unit-test-agent → backend-integration-test-agent → backend-functional-test-agent
-        → context-agent → backend-test-verify-agent
-        → [loop] backend-test-fix-agent → context-agent → backend-test-verify-agent
-    → Frontend testing:
-        frontend-unit-test-agent → frontend-integration-test-agent → frontend-functional-test-agent
-        → context-agent → frontend-test-verify-agent
-        → [loop] frontend-test-fix-agent → context-agent → frontend-test-verify-agent
+    → Backend testing (generate 3 layers, then verify/fix each layer in order):
+        backend-unit/integration/functional-test-agent → context-agent
+        per layer L: backend-{L}-test-verify-agent
+          → [loop] backend-{L}-test-fix-agent → context-agent → backend-{L}-test-verify-agent
+    → Frontend testing (generate 3 layers, then verify/fix each layer in order):
+        frontend-unit/integration/functional-test-agent → context-agent
+        per layer L: frontend-{L}-test-verify-agent
+          → [loop] frontend-{L}-test-fix-agent → context-agent → frontend-{L}-test-verify-agent
     → Production:
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
@@ -61,13 +69,18 @@ Frontend Input
 ## Loop exit phrases (exact match required)
 
 - **Backend approved:** `No issues found. Backend approved.`
-- **Backend tests satisfied:** `Backend testing requirements satisfied.`
-- **Frontend tests satisfied:** `Frontend testing requirements satisfied.`
+- **Backend unit tests:** `Backend unit testing requirements satisfied.`
+- **Backend integration tests:** `Backend integration testing requirements satisfied.`
+- **Backend functional tests:** `Backend functional testing requirements satisfied.`
+- **Frontend unit tests:** `Frontend unit testing requirements satisfied.`
+- **Frontend integration tests:** `Frontend integration testing requirements satisfied.`
+- **Frontend functional tests:** `Frontend functional testing requirements satisfied.`
 - **Production approved:** `Final approval granted. System is production-ready.`
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`, `productionVerifyIterations` in `state.json`).
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `backendVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); and `productionVerifyIterations`.
+- Within a side, verify/fix layers in order: unit → integration → functional.
 - Run backend testing to satisfaction before starting frontend testing.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
 

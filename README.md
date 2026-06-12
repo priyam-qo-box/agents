@@ -22,16 +22,24 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── jhipster-backend-agent.md          # Generates the microservices backend
     ├── jhipster-verify-agent.md           # Audits the backend (readonly)
     ├── issue-resolution-agent.md          # Fixes issues found by the verifier
-    ├── backend-unit-test-agent.md         # Backend unit tests
-    ├── backend-integration-test-agent.md  # Backend integration tests (Testcontainers)
-    ├── backend-functional-test-agent.md   # Backend functional/API tests
-    ├── backend-test-verify-agent.md       # Verifies backend tests (readonly)
-    ├── backend-test-fix-agent.md          # Closes backend test gaps
-    ├── frontend-unit-test-agent.md        # Frontend unit tests
-    ├── frontend-integration-test-agent.md # Frontend component tests (MSW)
-    ├── frontend-functional-test-agent.md  # Frontend E2E tests (Playwright)
-    ├── frontend-test-verify-agent.md      # Verifies frontend tests (readonly)
-    ├── frontend-test-fix-agent.md         # Closes frontend test gaps
+    ├── backend-unit-test-agent.md                  # Backend unit tests
+    ├── backend-unit-test-verify-agent.md           # Verifies backend unit tests (readonly)
+    ├── backend-unit-test-fix-agent.md              # Closes backend unit-layer gaps
+    ├── backend-integration-test-agent.md           # Backend integration tests (Testcontainers)
+    ├── backend-integration-test-verify-agent.md    # Verifies backend integration tests (readonly)
+    ├── backend-integration-test-fix-agent.md       # Closes backend integration-layer gaps
+    ├── backend-functional-test-agent.md            # Backend functional/API tests
+    ├── backend-functional-test-verify-agent.md     # Verifies backend functional tests (readonly)
+    ├── backend-functional-test-fix-agent.md        # Closes backend functional-layer gaps
+    ├── frontend-unit-test-agent.md                 # Frontend unit tests
+    ├── frontend-unit-test-verify-agent.md          # Verifies frontend unit tests (readonly)
+    ├── frontend-unit-test-fix-agent.md             # Closes frontend unit-layer gaps
+    ├── frontend-integration-test-agent.md          # Frontend component tests (MSW)
+    ├── frontend-integration-test-verify-agent.md   # Verifies frontend component tests (readonly)
+    ├── frontend-integration-test-fix-agent.md      # Closes frontend component-layer gaps
+    ├── frontend-functional-test-agent.md           # Frontend E2E tests (Playwright)
+    ├── frontend-functional-test-verify-agent.md    # Verifies frontend E2E tests (readonly)
+    ├── frontend-functional-test-fix-agent.md       # Closes frontend E2E-layer gaps
     ├── production-standards-agent.md      # Final production audit (readonly)
     ├── production-fix-agent.md            # Remediates production audit findings
     └── documentation.md                   # Standalone: Swagger + Postman + Javadoc
@@ -53,15 +61,23 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | **JHipster Verify Agent** | Audits API, security, architecture, database | Yes |
 | **Issue Resolution Agent** | Fixes every issue the verifier reports | No |
 | **Backend Unit Test Agent** | Isolated unit tests (services, mappers, validators) | No |
+| **Backend Unit Test Verify Agent** | Verifies backend unit-layer coverage/quality | Yes |
+| **Backend Unit Test Fix Agent** | Closes backend unit-layer gaps | No |
 | **Backend Integration Test Agent** | Repository/DB tests on Testcontainers PostgreSQL | No |
+| **Backend Integration Test Verify Agent** | Verifies backend integration-layer coverage/quality | Yes |
+| **Backend Integration Test Fix Agent** | Closes backend integration-layer gaps | No |
 | **Backend Functional Test Agent** | REST/API + gateway HTTP contract tests | No |
-| **Backend Test Verify Agent** | Verifies backend tests, edge cases, 95%+ coverage | Yes |
-| **Backend Test Fix Agent** | Closes backend test gaps | No |
+| **Backend Functional Test Verify Agent** | Verifies backend functional-layer coverage/quality | Yes |
+| **Backend Functional Test Fix Agent** | Closes backend functional-layer gaps | No |
 | **Frontend Unit Test Agent** | Isolated unit tests (utils, hooks, stores) | No |
+| **Frontend Unit Test Verify Agent** | Verifies frontend unit-layer coverage/quality | Yes |
+| **Frontend Unit Test Fix Agent** | Closes frontend unit-layer gaps | No |
 | **Frontend Integration Test Agent** | Component/page tests with MSW, routing, state | No |
+| **Frontend Integration Test Verify Agent** | Verifies frontend component-layer coverage/quality | Yes |
+| **Frontend Integration Test Fix Agent** | Closes frontend component-layer gaps | No |
 | **Frontend Functional Test Agent** | E2E user journeys (Playwright) | No |
-| **Frontend Test Verify Agent** | Verifies frontend tests, edge cases, 95%+ coverage | Yes |
-| **Frontend Test Fix Agent** | Closes frontend test gaps | No |
+| **Frontend Functional Test Verify Agent** | Verifies frontend E2E journey coverage | Yes |
+| **Frontend Functional Test Fix Agent** | Closes frontend E2E gaps | No |
 | **Production Standards Agent** | Final security / readiness / performance audit | Yes |
 | **Production Fix Agent** | Remediates production audit findings | No |
 
@@ -81,22 +97,26 @@ flowchart LR
     S --> GEN[Generate backend]
     GEN --> VL{Verify loop}
     VL -->|issues| FIX[Fix] --> VL
-    VL -->|"Backend approved"| BTL{Backend test loop}
-    BTL -->|"not satisfied"| BFIX[Fix tests] --> BTL
-    BTL -->|"Backend tests satisfied"| FTL{Frontend test loop}
-    FTL -->|"not satisfied"| FFIX[Fix tests] --> FTL
-    FTL -->|"Frontend tests satisfied"| PL{Production loop}
+    VL -->|"Backend approved"| BTL{"Backend test loops<br/>unit -> integration -> functional"}
+    BTL -->|"layer not satisfied"| BFIX[Fix that layer] --> BTL
+    BTL -->|"all 3 backend layers satisfied"| FTL{"Frontend test loops<br/>unit -> integration -> functional"}
+    FTL -->|"layer not satisfied"| FFIX[Fix that layer] --> FTL
+    FTL -->|"all 3 frontend layers satisfied"| PL{Production loop}
     PL -->|"blocked"| PFIX[Fix production] --> PL
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-Backend tests use separate unit, integration, and functional agents; frontend tests likewise. Every phase — including production — runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** before escalating to the user:
+Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**. Every phase — including production — runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|
 | Backend verification | `No issues found. Backend approved.` |
-| Backend testing | `Backend testing requirements satisfied.` |
-| Frontend testing | `Frontend testing requirements satisfied.` |
+| Backend unit testing | `Backend unit testing requirements satisfied.` |
+| Backend integration testing | `Backend integration testing requirements satisfied.` |
+| Backend functional testing | `Backend functional testing requirements satisfied.` |
+| Frontend unit testing | `Frontend unit testing requirements satisfied.` |
+| Frontend integration testing | `Frontend integration testing requirements satisfied.` |
+| Frontend functional testing | `Frontend functional testing requirements satisfied.` |
 | Production | `Final approval granted. System is production-ready.` |
 
 > Full diagrams (component architecture, sequence, loops, data flow, state machine) are in [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md).
