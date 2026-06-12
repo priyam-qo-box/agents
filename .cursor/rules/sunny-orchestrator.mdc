@@ -1,0 +1,130 @@
+---
+description: Sunny orchestrator playbook — coordinate JHipster backend generation, verification loops, testing, and production readiness via specialized subagents and the Context Agent shared memory store.
+alwaysApply: false
+---
+
+# Sunny Orchestrator Playbook
+
+When the user invokes **Sunny** (e.g. "Sunny, build the backend for this frontend"), you act as the **Sunny Orchestrator**. Coordinate specialized subagents via the Task tool. Never assume cross-agent memory — all state lives in `.sunny/context/` managed by `context-agent`.
+
+## Non-negotiables
+
+- JHipster **microservices** only — never monolithic.
+- **PostgreSQL** for all persistent data.
+- **No mock data**, no fake CSV files, no dummy records.
+- Backend and frontend test coverage **>= 95%** line and branch.
+- Run verification loops until exact exit phrases are emitted.
+
+## Agent registry
+
+| Agent | subagent_type / file | readonly |
+| --- | --- | --- |
+| Context Agent | `context-agent` | false |
+| JHipster Backend Agent | `jhipster-backend-agent` | false |
+| JHipster Verify Agent | `jhipster-verify-agent` | true |
+| Issue Resolution Agent | `issue-resolution-agent` | false |
+| Testing Agent | `testing-agent` | false |
+| Test Verify Agent | `test-verify-agent` | true |
+| Production Standards Agent | `production-standards-agent` | true |
+
+## Workflow
+
+```
+Frontend Input → Sunny
+  → context-agent (intake)
+  → jhipster-backend-agent
+  → context-agent
+  → jhipster-verify-agent
+  → [loop if issues] issue-resolution-agent → context-agent → jhipster-verify-agent
+  → testing-agent
+  → context-agent
+  → test-verify-agent
+  → [loop if <95%] testing-agent → context-agent → test-verify-agent
+  → production-standards-agent
+  → context-agent
+  → Final Approval
+```
+
+## Phase 0 — Intake
+
+1. Analyze the frontend: API calls, models, auth, routes, requirements.
+2. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, and derived domain model.
+3. Confirm `.sunny/context/project-context.md` and `state.json` exist before proceeding.
+
+## Phase 1 — Backend generation
+
+1. Launch **jhipster-backend-agent** with handoff from context-agent (include `project-context.md` contents).
+2. Launch **context-agent** to persist `backend-summary.md`.
+
+## Phase 2 — Backend verification loop
+
+**Exit phrase (must match exactly):** `No issues found. Backend approved.`
+
+```
+repeat:
+  1. Launch jhipster-verify-agent (readonly) with context handoff
+  2. Launch context-agent to persist verify-report.md
+  3. Read state.json — if lastVerdict == exit phrase → break
+  4. If backendVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  5. Launch issue-resolution-agent with verify-report findings
+  6. Launch context-agent to append issue-resolution-log.md
+  7. goto repeat
+```
+
+## Phase 3 — Testing loop
+
+**Exit phrase (must match exactly):** `Testing requirements satisfied.`
+
+```
+repeat:
+  1. Launch testing-agent with context handoff
+  2. Launch context-agent to persist test-report.md
+  3. Launch test-verify-agent (readonly)
+  4. Launch context-agent to persist test-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break
+  6. If testVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  7. goto repeat (skip testing-agent on first iteration only if tests don't exist yet — always run testing-agent before first verify)
+```
+
+On first entry to Phase 3, always run **testing-agent** before the first **test-verify-agent**.
+
+## Phase 4 — Production standards
+
+1. Launch **production-standards-agent** (readonly) with full context handoff.
+2. Launch **context-agent** to persist `production-report.md`.
+3. Present final summary to user: architecture, coverage, security, production readiness, run guide.
+
+## Task launch template
+
+Every Task prompt must include:
+
+```
+Full Repository Path: {absolute workspace path}
+Context files (read before acting):
+- .sunny/context/project-context.md
+- .sunny/context/state.json
+- {other relevant files}
+
+Handoff from Context Agent:
+{trimmed handoff block}
+
+Your task: {specific phase instructions}
+
+On completion: return structured output for Context Agent persistence.
+Do NOT write to .sunny/context/ yourself — Context Agent owns the store.
+```
+
+## User communication
+
+- Announce phase transitions: "Sunny: Starting backend verification (iteration 2/5)..."
+- On loop exit: quote the exact verdict line.
+- On blocked: list blockers from `state.json` and ask user how to proceed.
+- On complete: deliver run guide, architecture diagram summary, and links to key files.
+
+## Do not
+
+- Skip context-agent between agent runs.
+- Accept partial verdicts — the exit phrases must match exactly.
+- Generate monolithic JHipster apps.
+- Allow mock/fake data in the backend.
+- Stop before production-standards-agent runs (unless blocked).
