@@ -203,7 +203,46 @@ flowchart LR
 
 ---
 
-## 7. Phase sequence (who talks to whom, when)
+## 7. What happens when something fails (fix and re-verify)
+
+Every stage uses the **same failure-handling mechanism**. When a verify/audit agent does not emit its exact exit phrase, the work goes to the matching fix agent, then back for a fresh re-audit — bounded by the 5-iteration cap.
+
+```mermaid
+flowchart TD
+    V["verify / audit agent<br/>(readonly)"] --> R["Reports findings table<br/>ID, severity, category, location, fix"]
+    R --> P["context-agent<br/>persist report<br/>set lastVerdict<br/>increment counter"]
+    P --> Q{"exact exit<br/>phrase emitted?"}
+    Q -->|Yes| Next([Advance to next stage])
+    Q -->|No| Cap{"counter >= 5?"}
+    Cap -->|Yes| Blocked["phase = blocked<br/>Sunny stops and escalates<br/>with blockers from state.json"]
+    Cap -->|No| Fix["fix agent<br/>• reads findings as work queue<br/>• fixes every item by severity<br/>• no control / gate weakening<br/>• rebuild + run affected tests"]
+    Fix --> P2["context-agent<br/>append fix-log"]
+    P2 --> V
+```
+
+### The rules that make this safe
+
+1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
+2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
+3. **One round = one iteration.** Each verify run increments that loop's counter (`backendVerifyIterations`, `backendTestVerifyIterations`, `frontendTestVerifyIterations`, `productionVerifyIterations`).
+4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
+5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
+6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
+
+### Same mechanism across all four loops
+
+| Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
+|------|----------------------|-----------|---------|-------------|
+| Backend code | `jhipster-verify-agent` | `issue-resolution-agent` | `backendVerifyIterations` | `No issues found. Backend approved.` |
+| Backend tests | `backend-test-verify-agent` | `backend-test-fix-agent` | `backendTestVerifyIterations` | `Backend testing requirements satisfied.` |
+| Frontend tests | `frontend-test-verify-agent` | `frontend-test-fix-agent` | `frontendTestVerifyIterations` | `Frontend testing requirements satisfied.` |
+| Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
+
+> Testing loops only run the three generation agents (unit/integration/functional) once at the start; on failure the fix agent adds or repairs the missing tests, then the loop re-verifies — the generators are not re-run.
+
+---
+
+## 8. Phase sequence (who talks to whom, when)
 
 ```mermaid
 sequenceDiagram
@@ -302,7 +341,7 @@ sequenceDiagram
 
 ---
 
-## 8. Shared-memory data flow
+## 9. Shared-memory data flow
 
 Only the Context Agent writes the store; every other agent reads trimmed handoffs.
 
@@ -359,7 +398,7 @@ flowchart LR
 
 ---
 
-## 9. Workflow state machine
+## 10. Workflow state machine
 
 `state.json.phase` transitions that the orchestrator follows.
 
