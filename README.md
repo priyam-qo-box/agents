@@ -19,9 +19,15 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── ARCHITECTURE.md                    # All architecture + workflow diagrams
     ├── sunny.md                           # Orchestrator persona
     ├── context-agent.md                   # Shared memory (.sunny/context/ store)
+    ├── architecture-agent.md              # Designs architecture blueprint + boilerplate
+    ├── architecture-verify-agent.md       # Reviews the architecture (readonly)
+    ├── architecture-fix-agent.md          # Fixes architecture review findings
     ├── jhipster-backend-agent.md          # Generates the microservices backend
     ├── jhipster-verify-agent.md           # Audits the backend (readonly)
     ├── issue-resolution-agent.md          # Fixes issues found by the verifier
+    ├── database-agent.md                  # Hardens DB connections, schema, migrations
+    ├── database-verify-agent.md           # Audits the database layer (readonly)
+    ├── database-fix-agent.md              # Fixes database review findings
     ├── backend-unit-test-agent.md                  # Backend unit tests
     ├── backend-unit-test-verify-agent.md           # Verifies backend unit tests (readonly)
     ├── backend-unit-test-fix-agent.md              # Closes backend unit-layer gaps
@@ -57,9 +63,15 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 |-------|------|----------|
 | **Sunny** | Orchestrates all agents, runs loops, enforces quality gates | No |
 | **Context Agent** | Shared memory; persists structured summaries between runs | No |
+| **Architecture Agent** | Designs architecture blueprint + boilerplate from the frontend | No |
+| **Architecture Verify Agent** | Reviews decomposition, API coverage, JDL, auth design | Yes |
+| **Architecture Fix Agent** | Fixes architecture review findings | No |
 | **JHipster Backend Agent** | Generates JHipster microservices (gateway + services + registry) | No |
 | **JHipster Verify Agent** | Audits API, security, architecture, database | Yes |
 | **Issue Resolution Agent** | Fixes every issue the verifier reports | No |
+| **Database Agent** | Hardens DB connections, schema, migrations, standards | No |
+| **Database Verify Agent** | Audits DB layer (schema, migrations, no mock data) | Yes |
+| **Database Fix Agent** | Fixes database review findings | No |
 | **Backend Unit Test Agent** | Isolated unit tests (services, mappers, validators) | No |
 | **Backend Unit Test Verify Agent** | Verifies backend unit-layer coverage/quality | Yes |
 | **Backend Unit Test Fix Agent** | Closes backend unit-layer gaps | No |
@@ -94,10 +106,14 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 ```mermaid
 flowchart LR
     FE([Frontend]) --> S[Sunny]
-    S --> GEN[Generate backend]
+    S --> AL{Architecture loop}
+    AL -->|issues| AFIX[Fix] --> AL
+    AL -->|"Architecture approved"| GEN[Generate backend]
     GEN --> VL{Verify loop}
     VL -->|issues| FIX[Fix] --> VL
-    VL -->|"Backend approved"| BTL{"Backend test loops<br/>unit -> integration -> functional"}
+    VL -->|"Backend approved"| DL{Database loop}
+    DL -->|issues| DFIX[Fix] --> DL
+    DL -->|"Database approved"| BTL{"Backend test loops<br/>unit -> integration -> functional"}
     BTL -->|"layer not satisfied"| BFIX[Fix that layer] --> BTL
     BTL -->|"all 3 backend layers satisfied"| FTL{"Frontend test loops<br/>unit -> integration -> functional"}
     FTL -->|"layer not satisfied"| FFIX[Fix that layer] --> FTL
@@ -106,11 +122,13 @@ flowchart LR
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**. Every phase — including production — runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
+The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**. Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|
+| Architecture | `Architecture approved.` |
 | Backend verification | `No issues found. Backend approved.` |
+| Database | `Database approved.` |
 | Backend unit testing | `Backend unit testing requirements satisfied.` |
 | Backend integration testing | `Backend integration testing requirements satisfied.` |
 | Backend functional testing | `Backend functional testing requirements satisfied.` |
@@ -146,7 +164,7 @@ In a Cursor chat, invoke Sunny and point it at your frontend:
 
 > Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
 
-Sunny will analyze the frontend, generate the backend, run the verification and testing loops, and finish with a production audit — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the testing loops, and finish with a production audit — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Run the documentation agent (standalone)
 

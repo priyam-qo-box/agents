@@ -20,9 +20,15 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | Agent | subagent_type / file | readonly |
 | --- | --- | --- |
 | Context Agent | `context-agent` | false |
+| Architecture Agent | `architecture-agent` | false |
+| Architecture Verify Agent | `architecture-verify-agent` | true |
+| Architecture Fix Agent | `architecture-fix-agent` | false |
 | JHipster Backend Agent | `jhipster-backend-agent` | false |
 | JHipster Verify Agent | `jhipster-verify-agent` | true |
 | Issue Resolution Agent | `issue-resolution-agent` | false |
+| Database Agent | `database-agent` | false |
+| Database Verify Agent | `database-verify-agent` | true |
+| Database Fix Agent | `database-fix-agent` | false |
 | Backend Unit Test Agent | `backend-unit-test-agent` | false |
 | Backend Unit Test Verify Agent | `backend-unit-test-verify-agent` | true |
 | Backend Unit Test Fix Agent | `backend-unit-test-fix-agent` | false |
@@ -49,10 +55,16 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 ```
 Frontend Input → Sunny
   → context-agent (intake)
+  → Architecture:
+      architecture-agent → context-agent → architecture-verify-agent
+      → [loop if not approved] architecture-fix-agent → context-agent → architecture-verify-agent
   → jhipster-backend-agent
   → context-agent
   → jhipster-verify-agent
   → [loop if issues] issue-resolution-agent → context-agent → jhipster-verify-agent
+  → Database:
+      database-agent → context-agent → database-verify-agent
+      → [loop if not approved] database-fix-agent → context-agent → database-verify-agent
   → Backend testing (generate all 3 layers, then verify/fix each layer in order):
       backend-unit-test-agent → backend-integration-test-agent → backend-functional-test-agent → context-agent
       Unit:        backend-unit-test-verify-agent
@@ -81,9 +93,28 @@ Frontend Input → Sunny
 2. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, and derived domain model.
 3. Confirm `.sunny/context/project-context.md` and `state.json` exist before proceeding.
 
+## Phase 0.5 — Architecture loop
+
+Designs the architecture blueprint + boilerplate before any JHipster generation.
+
+**Exit phrase (must match exactly):** `Architecture approved.`
+
+```
+1. Launch architecture-agent with handoff (project-context.md)
+2. Launch context-agent to persist architecture-summary.md
+repeat:
+  3. Launch architecture-verify-agent (readonly) with context handoff
+  4. Launch context-agent to persist architecture-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 1
+  6. If architectureVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  7. Launch architecture-fix-agent with the verify findings
+  8. Launch context-agent to append architecture-fix-log.md
+  9. goto repeat
+```
+
 ## Phase 1 — Backend generation
 
-1. Launch **jhipster-backend-agent** with handoff from context-agent (include `project-context.md` contents).
+1. Launch **jhipster-backend-agent** with handoff from context-agent (include `project-context.md` and the approved `architecture-summary.md` blueprint + draft JDL).
 2. Launch **context-agent** to persist `backend-summary.md`.
 
 ## Phase 2 — Backend verification loop
@@ -99,6 +130,25 @@ repeat:
   5. Launch issue-resolution-agent with verify-report findings
   6. Launch context-agent to append issue-resolution-log.md
   7. goto repeat
+```
+
+## Phase 2.5 — Database loop
+
+Hardens and audits the database layer (connections, schema, Liquibase migrations, constraints, indexes, standards, no mock data) after the backend is approved and before testing.
+
+**Exit phrase (must match exactly):** `Database approved.`
+
+```
+1. Launch database-agent with handoff (backend-summary.md, project-context.md)
+2. Launch context-agent to persist database-summary.md
+repeat:
+  3. Launch database-verify-agent (readonly) with context handoff
+  4. Launch context-agent to persist database-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 3A
+  6. If databaseVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  7. Launch database-fix-agent with the verify findings
+  8. Launch context-agent to append database-fix-log.md
+  9. goto repeat
 ```
 
 ## Phase 3A — Backend testing (per-layer verify/fix loops)

@@ -19,9 +19,15 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Phase | Agent | Purpose |
 | --- | --- | --- |
 | Memory | context-agent | Shared memory in `.sunny/context/` |
+| Architecture | architecture-agent | Design architecture blueprint + boilerplate from the frontend |
+| Architecture audit | architecture-verify-agent | Review blueprint, decomposition, API coverage, JDL |
+| Architecture repair | architecture-fix-agent | Fix architecture review findings |
 | Development | jhipster-backend-agent | Generate JHipster microservices backend |
 | Verification | jhipster-verify-agent | Audit backend quality and security |
 | Repair | issue-resolution-agent | Fix issues found by verify agent |
+| Database | database-agent | Harden DB connections, schema, migrations, standards |
+| Database audit | database-verify-agent | Audit DB layer (schema, migrations, no mock data) |
+| Database repair | database-fix-agent | Fix database review findings |
 | Backend unit | backend-unit-test-agent | Isolated unit tests (services, mappers, validators) |
 | Backend unit | backend-unit-test-verify-agent | Verify backend unit-layer coverage/quality |
 | Backend unit | backend-unit-test-fix-agent | Close backend unit-layer gaps |
@@ -48,10 +54,16 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 ```
 Frontend Input
     → context-agent (intake)
+    → Architecture:
+        architecture-agent → context-agent → architecture-verify-agent
+        → [loop] architecture-fix-agent → context-agent → architecture-verify-agent
     → jhipster-backend-agent
     → context-agent
     → jhipster-verify-agent
     → [loop] issue-resolution-agent → context-agent → jhipster-verify-agent
+    → Database:
+        database-agent → context-agent → database-verify-agent
+        → [loop] database-fix-agent → context-agent → database-verify-agent
     → Backend testing (generate 3 layers, then verify/fix each layer in order):
         backend-unit/integration/functional-test-agent → context-agent
         per layer L: backend-{L}-test-verify-agent
@@ -68,7 +80,9 @@ Frontend Input
 
 ## Loop exit phrases (exact match required)
 
+- **Architecture approved:** `Architecture approved.`
 - **Backend approved:** `No issues found. Backend approved.`
+- **Database approved:** `Database approved.`
 - **Backend unit tests:** `Backend unit testing requirements satisfied.`
 - **Backend integration tests:** `Backend integration testing requirements satisfied.`
 - **Backend functional tests:** `Backend functional testing requirements satisfied.`
@@ -79,7 +93,8 @@ Frontend Input
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `backendVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); and `productionVerifyIterations`.
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); and `productionVerifyIterations`.
+- Run stages in order: architecture → backend → database → backend testing → frontend testing → production.
 - Within a side, verify/fix layers in order: unit → integration → functional.
 - Run backend testing to satisfaction before starting frontend testing.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
