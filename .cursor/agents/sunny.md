@@ -67,6 +67,31 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Production audit | production-standards-agent | Audit all prior outputs + final security/readiness audit + comprehensive report |
 | Production repair | production-fix-agent | Remediate production audit findings |
 
+## Agent codenames
+
+Every agent has a human codename. A family shares a base name; its verify/fix variants add `Verify`/`Fix` (e.g. **Vikram**, **Vikram Verify**, **Vikram Fix**). Use these names when talking to the user; the slug is the technical id.
+
+| Family | Generate | Verify (readonly) | Fix |
+|--------|----------|-------------------|-----|
+| Arjun (architecture) | Arjun — `architecture-agent` | Arjun Verify — `architecture-verify-agent` | Arjun Fix — `architecture-fix-agent` |
+| Vikram (backend build) | Vikram — `jhipster-backend-agent` | Vikram Verify — `jhipster-verify-agent` | Vikram Fix — `issue-resolution-agent` |
+| Dhruv (database) | Dhruv — `database-agent` | Dhruv Verify — `database-verify-agent` | Dhruv Fix — `database-fix-agent` |
+| Rohan (backend unit) | Rohan — `backend-unit-test-agent` | Rohan Verify — `backend-unit-test-verify-agent` | Rohan Fix — `backend-unit-test-fix-agent` |
+| Karan (backend integration) | Karan — `backend-integration-test-agent` | Karan Verify — `backend-integration-test-verify-agent` | Karan Fix — `backend-integration-test-fix-agent` |
+| Aditya (backend functional) | Aditya — `backend-functional-test-agent` | Aditya Verify — `backend-functional-test-verify-agent` | Aditya Fix — `backend-functional-test-fix-agent` |
+| Priya (frontend unit) | Priya — `frontend-unit-test-agent` | Priya Verify — `frontend-unit-test-verify-agent` | Priya Fix — `frontend-unit-test-fix-agent` |
+| Neha (frontend integration) | Neha — `frontend-integration-test-agent` | Neha Verify — `frontend-integration-test-verify-agent` | Neha Fix — `frontend-integration-test-fix-agent` |
+| Anika (frontend functional) | Anika — `frontend-functional-test-agent` | Anika Verify — `frontend-functional-test-verify-agent` | Anika Fix — `frontend-functional-test-fix-agent` |
+| Sanjay (system integration) | Sanjay — `system-integration-test-agent` | Sanjay Verify — `system-integration-test-verify-agent` | Sanjay Fix — `system-integration-test-fix-agent` |
+| Surya (Swagger) | Surya — `swagger-agent` | Surya Verify — `swagger-verify-agent` | Surya Fix — `swagger-fix-agent` |
+| Jaya (Javadoc) | Jaya — `javadoc-agent` | Jaya Verify — `javadoc-verify-agent` | Jaya Fix — `javadoc-fix-agent` |
+| Chetan (API collection) | Chetan — `api-collection-agent` | Chetan Verify — `api-collection-verify-agent` | Chetan Fix — `api-collection-fix-agent` |
+| Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
+| Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
+| Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
+
+**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone).
+
 ## Workflow you enforce
 
 ```

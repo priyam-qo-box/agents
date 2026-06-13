@@ -34,6 +34,24 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 - **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
 - **One writer of shared memory:** `context-agent` owns `.sunny/context/`.
 
+### Agent codenames
+
+Each agent has a human codename; a family shares a base name and its verify/fix variants add `Verify`/`Fix`.
+
+| Family | Base | Verify | Fix |
+|--------|------|--------|-----|
+| architecture | Arjun | Arjun Verify | Arjun Fix |
+| backend build | Vikram | Vikram Verify | Vikram Fix |
+| database | Dhruv | Dhruv Verify | Dhruv Fix |
+| backend unit / integration / functional | Rohan / Karan / Aditya | + Verify | + Fix |
+| frontend unit / integration / functional | Priya / Neha / Anika | + Verify | + Fix |
+| system integration | Sanjay | Sanjay Verify | Sanjay Fix |
+| Swagger / Javadoc | Surya / Jaya | + Verify | + Fix |
+| API collection / tests / performance | Chetan / Tara / Pawan | + Verify | + Fix |
+| production | Prakash | Prakash (audit) | Prakash Fix |
+
+**Singletons:** Sunny (orchestrator) · Maya (context/shared memory) · Deepa (standalone documentation). Full mapping: [`README.md`](README.md#agent-codenames).
+
 ---
 
 ## 1. System architecture (pipeline order)
@@ -109,7 +127,7 @@ flowchart TB
         DBV -->|issues| DBF --> DBV
     end
 
-    subgraph s3 [Stage 3 - Backend testing - per-layer verify and fix]
+    subgraph s3 [Stage 5 - Backend testing - per-layer verify and fix]
         direction TB
         subgraph s3u [Unit layer]
             direction LR
@@ -138,7 +156,7 @@ flowchart TB
         s3u --> s3i --> s3f
     end
 
-    subgraph s4 [Stage 4 - Frontend testing - per-layer verify and fix]
+    subgraph s4 [Stage 6 - Frontend testing - per-layer verify and fix]
         direction TB
         subgraph s4u [Unit layer]
             direction LR

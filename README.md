@@ -117,6 +117,31 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 
 ---
 
+## Agent codenames
+
+Every agent has a human codename. A family shares a base name; its verify/fix variants add `Verify`/`Fix` — e.g. **Vikram** (`jhipster-backend-agent`), **Vikram Verify** (`jhipster-verify-agent`), **Vikram Fix** (`issue-resolution-agent`).
+
+| Family | Generate | Verify (readonly) | Fix |
+|--------|----------|-------------------|-----|
+| Arjun (architecture) | Arjun | Arjun Verify | Arjun Fix |
+| Vikram (backend build) | Vikram | Vikram Verify | Vikram Fix |
+| Dhruv (database) | Dhruv | Dhruv Verify | Dhruv Fix |
+| Rohan (backend unit tests) | Rohan | Rohan Verify | Rohan Fix |
+| Karan (backend integration tests) | Karan | Karan Verify | Karan Fix |
+| Aditya (backend functional tests) | Aditya | Aditya Verify | Aditya Fix |
+| Priya (frontend unit tests) | Priya | Priya Verify | Priya Fix |
+| Neha (frontend integration tests) | Neha | Neha Verify | Neha Fix |
+| Anika (frontend functional tests) | Anika | Anika Verify | Anika Fix |
+| Sanjay (system integration tests) | Sanjay | Sanjay Verify | Sanjay Fix |
+| Surya (Swagger) | Surya | Surya Verify | Surya Fix |
+| Jaya (Javadoc) | Jaya | Jaya Verify | Jaya Fix |
+| Chetan (API collection) | Chetan | Chetan Verify | Chetan Fix |
+| Tara (API tests) | Tara | Tara Verify | Tara Fix |
+| Pawan (API performance) | Pawan | Pawan Verify | Pawan Fix |
+| Prakash (production) | — | Prakash | Prakash Fix |
+
+**Singletons:** Sunny (orchestrator) · Maya (shared memory / context) · Deepa (standalone documentation). The full codename → slug mapping is in [`.cursor/agents/README.md`](.cursor/agents/README.md#agent-codenames).
+
 ## Workflow at a glance
 
 ```mermaid
@@ -200,6 +225,7 @@ Sunny will analyze the frontend, design the architecture, generate the backend, 
 
 ## Learn more
 
+- [`.cursor/agents/AGENT-GUIDE.md`](.cursor/agents/AGENT-GUIDE.md) — what every single agent does, clearly explained.
 - [`.cursor/agents/README.md`](.cursor/agents/README.md) — how the Sunny system works, phase by phase.
 - [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md) — architecture and workflow diagrams.
 - [`.cursor/rules/sunny-orchestrator.mdc`](.cursor/rules/sunny-orchestrator.mdc) — the orchestration playbook.
