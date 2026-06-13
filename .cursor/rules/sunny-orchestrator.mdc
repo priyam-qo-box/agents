@@ -286,7 +286,7 @@ Runs **after** both per-layer backend (3A) and frontend (3B) testing stages comp
 repeat:
   3. Launch system-integration-test-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist system-integration-test-verify-report.md
-  5. Read state.json — if lastVerdict == exit phrase → break to Phase 4
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 3D
   6. If systemIntegrationTestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
   7. Launch system-integration-test-fix-agent with the verify findings
   8. Launch context-agent to append system-integration-test-fix-log.md
