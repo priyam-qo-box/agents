@@ -425,6 +425,19 @@ repeat:
 
 After the exit phrase, present the final summary to the user: architecture, coverage, security, production readiness, run guide.
 
+## Loop safety & edge cases (no infinite loops)
+
+The 5-iteration cap is the primary guard. These rules close the remaining edge cases so a loop can never spin forever or stall silently:
+
+- **Exact-phrase only.** A loop advances **only** when `lastVerdict` equals the stage's exit phrase character-for-character. Near-misses (missing period, extra words, different casing) do **not** advance — instruct every verify agent to emit the exact phrase on its own line. When in doubt, treat as "not satisfied".
+- **Deadlock guard (not satisfied + no findings).** If a verify agent does **not** emit the exit phrase but returns an **empty findings table**, do **not** launch the fix agent (it would have no work and loop uselessly). Treat it as blocked: set `phase: "blocked"`, record blocker `"verify not satisfied but produced no actionable findings"`, and escalate to the user.
+- **No-progress / oscillation guard.** Maya compares each new verify report to the previous one. If two **consecutive** fix→verify cycles show **no net reduction** in open findings (same or higher count, or the identical finding IDs persist), stop early: set `phase: "blocked"` with blocker `"no progress across 2 cycles"` even if the counter is below 5. This catches fix-A-breaks-B oscillation.
+- **Counter-integrity backstop.** Sunny independently counts how many times it has launched each verify agent this stage. If Maya's `state.json` counter ever disagrees or fails to increment, Sunny uses its own count and still enforces the cap — a stuck counter can never disable the cap.
+- **Cap is checked before re-fixing.** Always read `state.json` and evaluate `>= maxIterations` **before** launching the fix agent again, never after.
+- **Generators run once.** In the per-layer test stages the unit/integration/functional **generators run once**; only the per-layer fix agents run inside the loops. Never re-enter generation from a verify failure.
+- **Genuinely-blocked fix.** A fix agent that cannot resolve a finding must say so explicitly ("No — {blockers}"); Sunny then escalates rather than re-looping a known-unfixable item.
+- **Fresh run resets counters.** On a brand-new intake Maya resets all counters to 0; mid-run, counters are never reset (so a stage cannot dodge its cap by restarting).
+
 ## Task launch template
 
 Every Task prompt must include:

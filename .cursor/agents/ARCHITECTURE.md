@@ -569,6 +569,10 @@ flowchart TD
 4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
+7. **Deadlock guard.** "Not satisfied" with an **empty findings table** is treated as blocked immediately (no fix agent is launched with no work) — escalate instead of looping uselessly.
+8. **No-progress guard.** If two consecutive cycles show no net reduction in open findings (same/greater count or identical IDs persisting), Maya blocks early — catching oscillation (fix-A-breaks-B) before the cap.
+9. **Counter-integrity backstop.** Maya increments the counter every verify run; Sunny independently counts launches, so a stuck/missing counter can never disable the cap.
+10. **Exact phrase only.** Near-miss verdicts (typos, extra words) never advance; the verify agent is asked to re-emit the exact phrase.
 
 ### Same mechanism across all seventeen loops
 

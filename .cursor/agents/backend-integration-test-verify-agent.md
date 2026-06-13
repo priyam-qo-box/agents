@@ -26,6 +26,8 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ## Verdict rules
 
+> **Loop-safety:** emit the satisfaction/approval phrase **exactly** (character-for-character, on its own line) only when truly clean. When you do **not** approve, you **must** list at least one actionable finding in the findings table — never return "not satisfied"/"not approved" with an empty table, as that would stall the fix loop. If you have no findings, you have approved.
+
 - If **all integration-layer requirements** are met across every microservice: your response **must** include this exact line on its own:
   ```
   Backend integration testing requirements satisfied.

@@ -58,6 +58,8 @@ If **any** stage is incomplete, emit `Final approval blocked.` with the incomple
 
 ## Verdict rules
 
+> **Loop-safety:** emit the satisfaction/approval phrase **exactly** (character-for-character, on its own line) only when truly clean. When you do **not** approve, you **must** list at least one actionable finding in the findings table — never return "not satisfied"/"not approved" with an empty table, as that would stall the fix loop. If you have no findings, you have approved.
+
 - If **all categories pass** with no critical/high blockers:
   ```
   Final approval granted. System is production-ready.

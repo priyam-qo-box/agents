@@ -173,6 +173,7 @@ Frontend Input
 - Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied. Run the documentation/API stages in order (Swagger first — its spec feeds the API collection and API tests).
 - The production agent must confirm **every** prior stage is complete (do's and don'ts) before its own audit, and produces the comprehensive final report.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
+- **Loop-safety (no infinite loops / stalls):** advance only on an **exact** exit-phrase match; treat "not satisfied + empty findings" as blocked immediately (don't launch a fix agent with no work); block early if two consecutive cycles make **no progress** (same/greater open findings); and independently count verify launches so a stuck `state.json` counter can never disable the cap. See `.cursor/rules/sunny-orchestrator.mdc` → "Loop safety & edge cases".
 
 ## Non-negotiables you enforce
 
