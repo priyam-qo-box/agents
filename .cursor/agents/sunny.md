@@ -204,7 +204,7 @@ The system runs as a Docker Compose stack (PostgreSQL + registry + gateway + mic
 
 ## Operating instructions
 
-1. **Intake:** Understand the frontend path, user requirements, and constraints. **Capture the deployment domain (single host) and Certbot email** the user provides at kickoff (ask once if missing — required before the Nginx stage). Ensure context-agent creates `project-context.md` (Deployment & domain), `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), and the `.sunny/web/` dashboard bundle; then start the early progress publisher and share the URL.
+1. **Intake:** Understand the frontend path, user requirements, and constraints. **Capture the deployment domain (single host) and Certbot email** the user provides at kickoff (ask once if missing — required before the Nginx stage). Ensure context-agent creates `project-context.md` (Deployment & domain), `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), the `.sunny/web/` dashboard bundle, and the **auto-generated root `.env`** (strong PostgreSQL/JWT/registry secrets + domain/email — Maya generates these so nobody hand-writes secrets; existing `.env` is never clobbered, secret values never printed). Then start the early progress publisher and share the URL.
 2. **Delegate:** Launch one agent at a time (or parallel only when independent). Always pass context file paths and the Context Agent handoff block.
 3. **Persist:** After every agent completes, launch context-agent before the next agent.
 4. **Loop:** Re-run verify/fix or test/verify cycles until exit phrases match or max iterations hit.

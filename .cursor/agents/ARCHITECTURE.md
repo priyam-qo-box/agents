@@ -33,6 +33,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 - **Pipeline order:** architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
 - **Domain at intake:** the user provides a single **domain** + **Certbot email** at kickoff (`/` → frontend, `/api` → gateway); Naveen uses them at the Nginx stage.
+- **Secrets auto-generated:** at intake Maya creates a gitignored root `.env` with strong random secrets (PostgreSQL, JWT, registry); no human writes secrets and values are never logged. Downstream agents consume them as `${VAR}` and never hardcode literals.
 - **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend.
 - **Service lifecycle:** the stack runs via Docker Compose; code/config-changing agents rebuild + restart the affected services (`docker compose up -d --build <service>`), Nginx uses graceful reload, and testing stages run against a fresh, healthy stack. The dashboard survives every restart (decoupled static mount + separate publisher).
 - **Production agent** audits every prior stage's completeness (do's and don'ts) and emits one comprehensive final report.
@@ -273,7 +274,7 @@ The strict call order with all loops and their exact exit phrases.
 
 ```mermaid
 flowchart TD
-    Start(["Frontend Input<br/>+ domain + Certbot email"]) --> Intake["Intake<br/>context-agent creates<br/>project-context.md + state.json<br/>+ seeds .sunny/web dashboard"]
+    Start(["Frontend Input<br/>+ domain + Certbot email"]) --> Intake["Intake<br/>context-agent creates<br/>project-context.md + state.json<br/>+ seeds .sunny/web dashboard<br/>+ auto-generates .env secrets"]
     Intake --> Pub["Early publisher<br/>http://server-ip:8787/agentprogress.html"]
 
     Intake --> AGen[architecture-agent]
@@ -626,7 +627,7 @@ sequenceDiagram
     participant PF as Production Fix
 
     U->>S: Frontend + requirements + domain + Certbot email
-    S->>C: Intake (project-context.md, state.json, seed .sunny/web dashboard)
+    S->>C: Intake (project-context.md, state.json, seed .sunny/web dashboard, generate .env secrets)
     S->>U: Start early publisher -> http://server-ip:8787/agentprogress.html
 
     rect rgb(120,120,120)
@@ -843,8 +844,14 @@ flowchart LR
         PUB[docker-compose.yml + nginx-progress.conf]
     end
 
+    subgraph rootenv ["project root (gitignored)"]
+        ENV[".env (auto-generated secrets)"]
+    end
+
     Ctx[context-agent] -->|writes| store
     Ctx -->|"writes every handoff"| web
+    Ctx -->|"generates at intake (no values logged)"| ENV
+    ENV -->|"$VAR consumed by"| Stack["backend / nginx / tests<br/>(docker compose)"]
     PJSON -->|"early publisher / Naveen on domain"| Viewer["Browser<br/>agentprogress.html"]
 
     PC --> ARC[architecture-agent]

@@ -101,6 +101,13 @@ Define entities, fields, validations, enums, relationships, `paginate`, `service
 - Gateway routes, CORS locked to known origins, JWT propagation to microservices.
 - Rate limiting at gateway where appropriate.
 
+**Secrets & environment — consume the auto-generated `.env` (never hardcode):**
+
+- Maya generated the root `.env` at intake (PostgreSQL password, JWT base64 secret, registry password, `DOMAIN`, `ACME_EMAIL`). **Read these; do not regenerate or change them** — the database is initialized from `POSTGRES_PASSWORD`, so rotating it would break persistence.
+- Wire `docker-compose.yml`, `application-prod.yml`, and registry config to read these as `${VAR}` env vars (e.g. `POSTGRES_PASSWORD`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`). **No secret literals** in committed files.
+- The gateway/services JWT secret must come from `${JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET}` and be **shared** across gateway + microservices so tokens validate.
+- If a key your stack needs is missing from `.env`, **append it (generating a strong secret via `openssl rand`)** rather than inventing a weak default — and never print the value. Confirm `.env` stays gitignored.
+
 ## Production-readiness checklist (must address all)
 
 | Area | Requirements |
@@ -152,7 +159,7 @@ Return a structured summary (do not write files in `.sunny/context/` yourself):
 3. Start microservices
 4. Start gateway
 5. Point frontend at gateway URL
-6. **Build + start (and restart after changes):** `docker compose up -d --build` to (re)build and launch the stack; wait for health checks before testing. After later code/config edits, rebuild + restart only the affected service (`docker compose up -d --build <service>`).
+6. **Build + start (and restart after changes):** `docker compose up -d --build` to (re)build and launch the stack (Compose auto-loads the root `.env` for secrets/config); wait for health checks before testing. After later code/config edits, rebuild + restart only the affected service (`docker compose up -d --build <service>`).
 
 ### Assumptions & defaults
 - {list}

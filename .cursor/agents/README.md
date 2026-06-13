@@ -508,7 +508,7 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 **Prerequisites:** install Java, Node, Docker, Graphify, and configure Git on your machine or VPS — see the repo root **[INSTALL.md](../../INSTALL.md)** (clone workflow, [`.gitignore`](../../.gitignore), [`.env.example`](../../.env.example), firewall, edge cases).
 
-1. **Clone on the VPS**, copy or symlink `.cursor/` into your project, create `.env` from `.env.example`, bootstrap Graphify (`graphify .`).
+1. **Clone on the VPS**, copy or symlink `.cursor/` into your project, bootstrap Graphify (`graphify .`). You don't need to create `.env` — Maya auto-generates it with strong secrets at intake (copy `.env.example` → `.env` only to override values).
 
 2. **Invoke Sunny** in a Cursor chat, with **domain + Certbot email** at kickoff:
 

@@ -50,6 +50,7 @@ graphify install
 - The system's shared memory and the **only** agent allowed to write to `.sunny/context/` and `.sunny/web/`. Every other agent hands its output to Maya for persistence.
 - Summarizes each agent's output into structured reports, updates `state.json` (phase, counters, `lastVerdict`, `project` domain/email, `workflowStartedAt`, per-stage timing), and builds the trimmed handoff for the next agent.
 - **Owns the live progress dashboard:** at intake she seeds `.sunny/web/` (dashboard + early publisher), and after **every** handoff she rewrites `.sunny/web/progress.json` (completed/pending stages, current phase, time consumed/estimated/remaining, ETA).
+- **Bootstraps secrets:** at intake she auto-generates the root `.env` with strong random secrets (PostgreSQL password, JWT base64 secret, registry password) + `DOMAIN`/`ACME_EMAIL` from the prompt — so no human writes secrets. Idempotent (never clobbers an existing `.env`) and secret values are never logged to context, the dashboard, or chat.
 - **Reads:** the previous agent's raw output + current store. **Produces:** all `.sunny/context/*.md` reports + `state.json` + `.sunny/web/progress.json`.
 
 ---
@@ -57,6 +58,7 @@ graphify install
 ## Inputs you give at kickoff & the live dashboard
 
 - **Domain + Certbot email (at intake):** provide a single **domain** (`https://<domain>/` → frontend, `https://<domain>/api` → gateway) and a **Certbot/ACME email**. Sunny captures them at intake; Naveen uses them at the Nginx stage. If omitted, Sunny asks before the Nginx stage.
+- **Secrets are automatic:** you do **not** supply DB passwords or JWT secrets. Maya generates a gitignored `.env` with strong secrets at intake; provide your own only if you want to override (pre-create `.env` and Maya keeps your values).
 - **Live progress dashboard (from agent #1):** completed/pending stages, current phase, time consumed, estimated total, time remaining — auto-refreshing every 5 minutes.
   - Early (intake → before Nginx): `http://<server-ip>:8787/agentprogress.html` (tiny static publisher).
   - From the Nginx stage on: `https://<domain>/agentprogress.html` over HTTPS (publisher retired).

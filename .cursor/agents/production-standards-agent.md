@@ -82,6 +82,7 @@ When blocked, your findings are routed to the **production-fix-agent**, which re
 - [ ] Authentication security: JWT expiry, refresh strategy, secure cookie flags if applicable
 - [ ] Authorization: least privilege, no missing `@PreAuthorize` on sensitive endpoints
 - [ ] Secrets: none in git history or committed files; env-var driven in prod
+- [ ] **`.env` bootstrap:** root `.env` exists, is **gitignored** (and not tracked), and was auto-generated — `POSTGRES_PASSWORD`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`, and `JHIPSTER_REGISTRY_PASSWORD` are present, **strong** (not `change-me`/example/placeholder values), and referenced as `${VAR}` in compose/config (no literals)
 - [ ] API protection: rate limiting, input validation, no verbose error leaks in prod
 - [ ] **HTTPS/TLS:** Nginx terminates TLS on the domain; valid Let's Encrypt certs; HTTP redirects to HTTPS; renewal automation proven
 - [ ] CORS, CSRF (if session-based), security headers

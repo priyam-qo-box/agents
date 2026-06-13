@@ -35,9 +35,9 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ### Connections & config
 
-- PostgreSQL JDBC config per service for prod (URL, credentials via env/config server)
+- PostgreSQL JDBC config per service for prod (URL, credentials via env/config server) — credentials come from the **`.env` Maya generated at intake** (`${POSTGRES_USER}` / `${POSTGRES_PASSWORD}`); never hardcode or change them (the DB is initialized from that password)
 - **HikariCP** connection pooling tuned (pool size, timeouts)
-- Profiles separated (dev/test/prod); secrets externalized
+- Profiles separated (dev/test/prod); secrets externalized via `${VAR}`, no literals in committed config
 
 ### Schema & migrations
 

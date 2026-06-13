@@ -200,8 +200,8 @@ Frontend Input → Sunny
 
 1. Analyze the frontend: API calls, models, auth, routes, requirements.
 2. **Capture deployment inputs** the user gives at kickoff: the **domain** (single host — `https://<domain>/` frontend, `https://<domain>/api` gateway) and a **Certbot/ACME email**. If either is missing, ask the user once now; they are **required before the Nginx stage (Phase 2.6)** but intake can proceed without them. Pass `project.name`, `domain`, `acmeEmail` to context-agent.
-3. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, derived domain model, and the deployment inputs. Maya writes `project-context.md` (Deployment & domain section), initializes `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), and seeds the dashboard bundle in `.sunny/web/`.
-4. Confirm `.sunny/context/project-context.md`, `state.json`, and `.sunny/web/progress.json` exist before proceeding.
+3. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, derived domain model, and the deployment inputs. Maya writes `project-context.md` (Deployment & domain section), initializes `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), seeds the dashboard bundle in `.sunny/web/`, and **auto-generates the root `.env` with strong secrets** (PostgreSQL password, JWT base64 secret, registry password) plus `DOMAIN`/`ACME_EMAIL` from intake — no human writes secrets. Maya is idempotent: an existing `.env` is never clobbered; only missing keys/secrets are added. Secret values are never echoed to chat, context, or the dashboard.
+4. Confirm `.sunny/context/project-context.md`, `state.json`, `.sunny/web/progress.json`, and the root `.env` (gitignored, secrets generated) exist before proceeding.
 5. **Start the early progress publisher** so the run is web-visible from agent #1:
    ```bash
    docker compose -f .sunny/web/docker-compose.yml up -d   # or: PROGRESS_PORT=9090 docker compose -f .sunny/web/docker-compose.yml up -d

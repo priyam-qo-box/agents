@@ -249,7 +249,7 @@ In a Cursor chat, invoke Sunny and point it at your frontend:
 
 > Sunny, build the JHipster microservices backend for the frontend in `./frontend` and use the domain `example.com` (admin@example.com).
 
-Provide your **domain** and a **Certbot email** at kickoff — Sunny captures them at intake and Naveen uses them to connect the frontend + gateway to the domain over HTTPS. Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Provide your **domain** and a **Certbot email** at kickoff — Sunny captures them at intake and Naveen uses them to connect the frontend + gateway to the domain over HTTPS. **You don't create `.env` or pick passwords:** Maya auto-generates the root `.env` with strong secrets (PostgreSQL, JWT, registry) at intake and never commits them. Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Watch live progress
 
@@ -280,7 +280,7 @@ The whole system runs as a Docker Compose stack (PostgreSQL + registry + gateway
 
 - **[INSTALL.md](INSTALL.md)** — what to install (React, Java/JHipster, Docker, Graphify, …), VPS setup, `.gitignore`, GitHub clone/push workflow, edge cases.
 - [`.gitignore`](.gitignore) — never commit `.env`, `.sunny/`, `node_modules/`, `target/`, certs, `graphify-out/`.
-- [`.env.example`](.env.example) — environment template (copy to `.env` on the VPS).
+- [`.env.example`](.env.example) — reference template; the real `.env` is auto-generated with secrets by Maya at intake (copy only to override).
 - [`.cursor/agents/AGENT-GUIDE.md`](.cursor/agents/AGENT-GUIDE.md) — what every single agent does, clearly explained.
 - [`.cursor/agents/README.md`](.cursor/agents/README.md) — how the Sunny system works, phase by phase.
 - [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md) — architecture and workflow diagrams.

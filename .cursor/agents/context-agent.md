@@ -249,6 +249,27 @@ Each `phase` value maps to exactly one dashboard stage. Seed `stages[]` from thi
 
 Keep `progress.json` small and valid JSON — the dashboard fetches it every 60s and the browser hard-refreshes every 5 minutes. Never block a handoff on the dashboard; if anything is uncertain, still write your best current snapshot.
 
+## Secrets & environment bootstrap (auto-generated — no manual `.env`)
+
+At intake you create the project's root `.env` so the operator never has to hand-write secrets. This is the **single source of truth** for the whole stack (PostgreSQL, JWT, registry, domain, dashboard). Treat it as security-sensitive.
+
+**Rules:**
+
+- **Idempotent — never clobber.** If `.env` already exists, **do not overwrite it**; only **add missing keys** and **generate only missing secrets**. This keeps secrets stable across re-runs (a regenerated DB password would break an already-initialized database).
+- **Generate strong secrets** with the OS RNG (do not invent weak/example values):
+  ```bash
+  openssl rand -base64 32   # POSTGRES_PASSWORD, JHIPSTER_REGISTRY_PASSWORD
+  openssl rand -base64 64   # JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET
+  ```
+  (No-openssl fallback: `head -c 48 /dev/urandom | base64`.)
+- **Fill deployment values** from intake: `DOMAIN`, `ACME_EMAIL`. Leave `PROGRESS_PORT=8787` default.
+- **Start from the template.** Copy `.env.example` → `.env`, then replace every `change-me*` placeholder with a generated secret or the real intake value.
+- **Never expose secret values.** Do **not** write secret values into `project-context.md`, `state.json`, `progress.json`, handoff packages, fix logs, or chat. Only record that they were **generated** (boolean/notes), never the values.
+- **Keep it out of Git.** `.env` is already covered by `.gitignore`; confirm it is ignored. Never stage or commit it.
+- **Minimum keys to ensure exist** (generate if missing): `DOMAIN`, `ACME_EMAIL`, `PROGRESS_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `SPRING_PROFILES_ACTIVE`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`, `JHIPSTER_REGISTRY_PASSWORD`. (Frontend `VITE_API_URL`/`REACT_APP_API_URL` and optional `DASHBOARD_AUTH_*` are set/extended later by Naveen.)
+
+Downstream agents (Vikram, Naveen, the test stages) **consume** these env vars and must reference them as `${VAR}` in `docker-compose`/config — they must never hardcode secret literals or regenerate the ones you created.
+
 ## Required workflow
 
 ### 1. On intake (first invocation or new project)
@@ -259,6 +280,7 @@ Create or reset the store:
 2. Initialize `state.json` with `phase: "intake"`, the `project` block (name/domain/acmeEmail), `workflowStartedAt = now`, counters at 0, empty blockers, and `stages[]` seeded from the dashboard stage map.
 3. Create empty placeholder files for phase reports if they do not exist.
 4. Seed the dashboard: create `.sunny/web/`, copy `agentprogress.html` + `docker-compose.yml` + `nginx-progress.conf` from `.cursor/dashboard/`, and write the first `progress.json`. (Sunny starts the publisher; you only create the files.)
+5. **Bootstrap secrets & environment** — generate the root `.env` with strong secrets so no human has to (see "Secrets & environment bootstrap" below).
 
 ### 2. On agent output capture (every invocation)
 
@@ -296,6 +318,7 @@ Read the requested files and return a trimmed summary for the specified `targetA
 - **Domain:** {domain} — single host: `https://{domain}/` serves the frontend, `https://{domain}/api` proxies the JHipster gateway (set by Naveen at the Nginx stage).
 - **Certbot/ACME email:** {acmeEmail} — for Let's Encrypt issuance + renewal.
 - **Progress dashboard:** early `http://{server-ip}:8787/agentprogress.html` (publisher), then `https://{domain}/agentprogress.html` once Nginx is up.
+- **Secrets:** root `.env` auto-generated at intake (gitignored). Generated: {yes/no} — POSTGRES_PASSWORD, JWT base64 secret, registry password. **Never record secret values here**, only this status line.
 - **Notes:** captured at intake. If domain/email are missing, flag as an open question — they are required before the Nginx & SSL stage.
 
 ## Domain model

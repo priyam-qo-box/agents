@@ -29,6 +29,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - **HTTPS everywhere.** Valid CA-issued certificates via **Certbot/Let's Encrypt** (ACME HTTP-01 or DNS-01). HTTP must **301-redirect** to HTTPS.
 - **Automatic renewal** is configured (certbot renew via timer/cron or the certbot container) and proven to dry-run cleanly.
 - **No secrets in the image.** Domain, email, and any tokens come from env/`.env`/secrets, not baked into committed config.
+- **Consume the auto-generated `.env`; never clobber it.** Maya created the root `.env` at intake (DB/JWT/registry secrets + `DOMAIN`/`ACME_EMAIL`). Read those values; if you need new keys (frontend API base URL `VITE_API_URL`/`REACT_APP_API_URL=https://<domain>/api`, or optional dashboard Basic-Auth `DASHBOARD_AUTH_USER`/`DASHBOARD_AUTH_PASSWORD`), **append** them — generate any new password with `openssl rand -base64 24`, never print it, and leave existing secrets untouched. `.env` stays gitignored.
 - Modern TLS only (TLS 1.2+), sane ciphers, OCSP stapling where available.
 
 ## What you build
