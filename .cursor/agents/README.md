@@ -102,7 +102,7 @@ Every agent has a human codename. A family shares a base name and its verify/fix
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
 
-**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone).
+**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
 
 ---
 
@@ -531,7 +531,7 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 6. **On completion**, Sunny delivers a summary: architecture, services, coverage, security posture, and a run guide. Outstanding `needs-attention` items are listed; the run does not halt on them by default.
 
-**Many VPSs:** clone or symlink the **same** `.cursor/` on each machine; deploy `.cursor/central/` once on your fleet domain. See [INSTALL.md](../../INSTALL.md) Pattern C and [`.cursor/central/README.md`](../central/README.md).
+**Many VPSs:** clone or symlink the **same** `.cursor/` on each machine; deploy `.cursor/central/` once on your fleet domain via the **Fleet Host Agent (Hari)** — *"Sunny, set up the fleet dashboard host. Fleet domain: …"*. See [INSTALL.md](../../INSTALL.md) Pattern C and [`.cursor/central/README.md`](../central/README.md).
 
 ---
 

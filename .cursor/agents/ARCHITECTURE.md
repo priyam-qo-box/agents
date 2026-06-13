@@ -8,7 +8,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 0. System at a glance
 
-**52 orchestrated agents** (plus a standalone documentation agent), driven through **17 bounded verify/fix loops**.
+**52 orchestrated agents** (plus 2 standalone agents: `documentation` and `fleet-host-agent`), driven through **17 bounded verify/fix loops**.
 
 | Group | Count | Agents |
 |-------|-------|--------|
@@ -26,7 +26,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | API tests (status) | 3 | `api-test-agent`, `api-test-verify-agent` (readonly), `api-test-fix-agent` |
 | API performance (1/10/20/30) | 3 | `api-performance-test-agent`, `api-performance-test-verify-agent` (readonly), `api-performance-test-fix-agent` |
 | Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
-| Standalone (not orchestrated) | 1 | `documentation` |
+| Standalone (not orchestrated) | 2 | `documentation`, `fleet-host-agent` |
 
 - **17 verify/fix loops:** architecture + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production.
 - **17 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
@@ -59,7 +59,7 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 | API collection / tests / performance | Chetan / Tara / Pawan | + Verify | + Fix |
 | production | Prakash | Prakash (audit) | Prakash Fix |
 
-**Singletons:** Sunny (orchestrator) · Maya (context/shared memory) · Deepa (standalone documentation). Full mapping: [`README.md`](README.md#agent-codenames).
+**Singletons:** Sunny (orchestrator) · Maya (context/shared memory) · Deepa (standalone documentation) · Hari (standalone fleet-host — deploys the global dashboard). Full mapping: [`README.md`](README.md#agent-codenames).
 
 ---
 

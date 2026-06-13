@@ -130,6 +130,7 @@ So the answer to "do they get blocked?": **no for internal secrets** (the agent 
 | API Performance Test Fix Agent | `api-performance-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
 | Production Fix Agent | `production-fix-agent` | false |
+| Fleet Host Agent (standalone) | `fleet-host-agent` | false |
 
 ## Agent codenames
 
@@ -154,8 +155,13 @@ Each agent has a human codename (a family base name + `Verify`/`Fix`). Refer to 
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
+| Hari (fleet host, standalone) | Hari — `fleet-host-agent` | — | — |
 
-**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone).
+**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
+
+**Fleet host (Hari):** the global/fleet dashboard is a separate, run-once deployment. On the host that owns the **fleet domain**, invoke **Hari** to stand up the central collector (`.cursor/central/`) with TLS, so all worker VPSs can push to one board at `https://<fleet-domain>/`. Hari is **not** part of the per-project pipeline and does not use the Context Agent. Worker runs only need to be given the fleet domain at kickoff; Maya fetches the push token from `/api/fleet-config` automatically (and retries if Hari has not deployed yet).
+
+> **Never auto-launch Hari.** The `fleet-host-agent` file ships in the shared `.cursor/` on **every** VPS (workers included), but it is **inert** — it runs only on an explicit operator request to deploy the fleet board, on the host the operator designates. The per-project workflow below never includes Hari. When a worker run is asked only to "build the backend", do **not** invoke Hari; just have Maya push to the already-running fleet host.
 
 ## Workflow
 

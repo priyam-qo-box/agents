@@ -1,8 +1,8 @@
 # Sunny fleet collector + Nginx/TLS — deploy on your CENTRAL/global domain.
 #
-#   cp .env.example .env   # set CENTRAL_DOMAIN, ACME_EMAIL, COLLECTOR_TOKENS
+#   cp .env.example .env   # set CENTRAL_DOMAIN (+ ACME_EMAIL); token auto-generated
+#   # issue the TLS cert FIRST (cert-first — see README/fleet-host-agent.md), then:
 #   docker compose up -d --build
-#   # issue the cert once (see README), then: docker compose exec nginx nginx -s reload
 #
 # Result: https://<CENTRAL_DOMAIN>/            -> fleet dashboard (global.html)
 #         https://<CENTRAL_DOMAIN>/api/runs    -> JSON feed (public, read-only)
@@ -20,12 +20,26 @@ services:
       - collector-data:/data
     expose:
       - "8080"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
-      - collector
+      collector:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -35,6 +49,13 @@ services:
       - ./nginx-central.conf:/etc/nginx/templates/default.conf.template:ro
       - ./letsencrypt:/etc/letsencrypt
       - ./acme:/var/www/acme
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   collector-data:

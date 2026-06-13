@@ -58,6 +58,8 @@ ln -s /opt/sunny-agents/.cursor /opt/my-app/.cursor
 
 ### Pattern C — Fleet (many VPSs, same agents, one global view)
 
+> **Exact prompts, step by step:** see [`FLEET-QUICKSTART.md`](FLEET-QUICKSTART.md) — first VPS (fleet host + build) vs. later VPSs (build only).
+
 Use the **same** `.cursor/` on every worker VPS (clone this repo or symlink). Each VPS runs Sunny **independently** for a different project/domain. Deploy the fleet collector **once** on a central host:
 
 | Host | Role | What runs |
@@ -65,7 +67,14 @@ Use the **same** `.cursor/` on every worker VPS (clone this repo or symlink). Ea
 | **Central VPS** | Fleet dashboard only | `.cursor/central/` → `https://<fleet-domain>/` |
 | **Worker VPS #1, #2, …** | Full Sunny pipeline | Same `.cursor/` agents + project frontend; pushes progress to central |
 
-**On the central host (once — only fleet domain + email):**
+**On the central host (once — an agent does it):** invoke the **Fleet Host Agent (Hari)** — it writes `.env`, issues the cert, starts the stack, schedules renewal, and validates the board. You only ensure DNS + ports first.
+
+```text
+# In Cursor on the central host (repo cloned, Docker installed):
+"Sunny, set up the fleet dashboard host. Fleet domain: fleet.example.com (admin@example.com)."
+```
+
+Prefer to do it by hand? The manual steps are below — token is still auto-generated.
 
 ```bash
 cd /opt/sunny-agents/.cursor/central
@@ -374,7 +383,7 @@ docker compose -f .sunny/web/docker-compose.yml up -d
 | **An agent needs a new secret mid-run** | Internal secrets (passwords, signing keys) are **self-service**: the agent appends them to `.env` with `openssl rand` and registers the key name with Maya — no blocking. |
 | **A third-party provider key is required** | The agent can't mint it: it adds a `__set-me__` placeholder, flags the integration off, and surfaces an **"Action required"** item (dashboard + final report). The run continues; you supply the real key in `.env` and that stage picks it up. |
 | **A loop can't reach a clean pass** | The iteration cap stops the loop; the pipeline **does not halt** — the stage is marked `needs-attention`, items become notifications, and the run continues. Only a hard technical dependency (won't build) stops it. |
-| **Watch many VPS runs at once** | Deploy `.cursor/central/` on fleet domain (domain + email only). Each worker gives Sunny **project + fleet domain**; agents fetch token and push. |
+| **Watch many VPS runs at once** | Deploy `.cursor/central/` on fleet domain via the **Fleet Host Agent (Hari)** (domain + email only). Each worker gives Sunny **project + fleet domain**; agents fetch token and push. |
 | **Central collector unreachable** | Pushes are best-effort; the local dashboard keeps working and the next handoff retries — the run is never blocked. |
 | **Disk full from Docker** | Periodic `docker system prune -af` (careful) + adequate disk per §3. |
 

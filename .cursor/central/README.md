@@ -41,7 +41,15 @@ VPS #3 ─┘   (Bearer token)              global.html + collector
 | `nginx-central.conf` | Reverse proxy + ACME challenge + HTTPS. |
 | `.env.example` | `CENTRAL_DOMAIN`, `ACME_EMAIL`, `COLLECTOR_TOKENS`. |
 
-## Deploy (on the central host)
+## Deploy — option 1: let an agent do it (recommended)
+
+On the host that owns the fleet domain, invoke the **Fleet Host Agent (Hari)** — it runs every step below for you (config, cert, stack, renewal, validation) and is idempotent:
+
+> Sunny, set up the fleet dashboard host. Fleet domain: `fleet.example.com` (admin@example.com).
+
+You still need the **DNS A record** (`fleet.example.com` → this host) and ports 80/443 open — Hari checks these and tells you if they're missing. See [`.cursor/agents/fleet-host-agent.md`](../agents/fleet-host-agent.md).
+
+## Deploy — option 2: manual (on the central host)
 
 1. **DNS:** point `CENTRAL_DOMAIN` (e.g. `fleet.example.com`) A-record at this host; open ports 80 + 443.
 2. **Config** (fleet domain + email only — no token to generate):
@@ -93,9 +101,12 @@ curl -fsS -X POST "$CENTRAL_DASHBOARD_URL/api/runs/$RUN_ID" \
 
 The push is **best-effort**: if the fleet host is down, the local run continues and retries on the next handoff.
 
-## Security
+## Security (production-hardened)
 
 - Writes require a valid **Bearer token**; reads (`/api/runs`, dashboard) are public.
   To make the fleet view private too, enable Nginx **Basic-Auth** (commented in `nginx-central.conf`).
-- `runId` is sanitized server-side (no path traversal); POST bodies are size-capped.
+- `runId` is sanitized server-side (no path traversal); POST bodies are size-capped; per-IP **rate limiting** (`limit_req`) on the edge.
+- **Modern TLS only** (TLS 1.2/1.3, Mozilla-intermediate ciphers, OCSP stapling, `ssl_session_tickets off`).
+- **Security headers** on every response: HSTS (2y, includeSubDomains), `X-Content-Type-Options`, `X-Frame-Options: DENY`, a locked-down `Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`. The collector also emits nosniff / frame-deny so the TLS-less fallback stays safe.
+- **Least privilege:** the collector image runs as a **non-root** user; both services use `no-new-privileges`; only Nginx publishes 80/443 (the collector's 8080 is internal). Log rotation is capped (json-file, 10m × 5).
 - Tokens and `.env` are **gitignored**. On first start the collector **auto-generates** a push token (saved to `data/fleet_push.token`). Workers fetch it via `/api/fleet-config` — you never distribute it manually. To rotate: set `COLLECTOR_TOKENS` explicitly and restart.

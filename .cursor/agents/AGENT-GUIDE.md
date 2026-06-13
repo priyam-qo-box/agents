@@ -14,7 +14,7 @@ A complete, presentation-ready reference for **every agent** in the Sunny multi-
 - **Exit phrase** — the exact string a verify agent emits when its loop is satisfied. The orchestrator matches it literally to advance.
 - **Loop** — generate → verify → fix → re-verify, capped at **5 iterations** per loop before Sunny escalates.
 
-**System totals:** 52 orchestrated agents + 1 standalone (`documentation`) · 17 verify/fix loops · 17 readonly auditors.
+**System totals:** 52 orchestrated agents + 2 standalone (`documentation`, `fleet-host-agent`) · 17 verify/fix loops · 17 readonly auditors.
 
 **Pipeline order:**
 
@@ -288,6 +288,10 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 ### Deepa — Documentation Agent (`documentation`) · not readonly
 - A one-shot, do-everything documentation specialist that produces complete Swagger/OpenAPI docs, Postman collections + environments (Newman CI), and Javadoc for any Spring Boot / JHipster codebase. Run it on demand; it is **not** part of the Sunny pipeline (the orchestrated Surya/Chetan/Jaya families cover those concerns inside the pipeline).
 
+### Hari — Fleet Host Agent (`fleet-host-agent`) · not readonly
+- A **run-once** agent that deploys the **global/fleet dashboard** on the host owning the **fleet domain**. It brings up the central collector (`.cursor/central/`): writes `.env` (token auto-generated), issues the Let's Encrypt cert, starts the collector + Nginx stack, schedules renewal, and validates `https://<fleet-domain>/` end to end. Idempotent and self-healing (reports DNS/port blockers instead of hanging).
+- Invoke it **once** on the fleet host: *"Sunny, set up the fleet dashboard host. Fleet domain: `global.mememates.org` (admin@…)."* Worker VPSs then only need the fleet domain at kickoff — Maya fetches the push token from `/api/fleet-config` automatically. Not part of the per-project pipeline; does not use the Context Agent.
+
 ---
 
 ## Quick reference — codename → slug → exit phrase
@@ -347,3 +351,4 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 | Prakash | `production-standards-agent` | Yes | `Final approval granted. System is production-ready.` |
 | Prakash Fix | `production-fix-agent` | No | — |
 | Deepa | `documentation` | No | — (standalone) |
+| Hari | `fleet-host-agent` | No | — (standalone; deploys global dashboard) |

@@ -138,6 +138,7 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | Agent | Role |
 |-------|------|
 | **Documentation Agent** | Complete Swagger/OpenAPI docs, Postman collections + Newman CI, and Javadoc — leaving nothing undocumented |
+| **Fleet Host Agent (Hari)** | Run-once: deploys the global/fleet dashboard (central collector + TLS) on the fleet domain so all VPS runs show on one board |
 
 ---
 
@@ -165,7 +166,7 @@ Every agent has a human codename. A family shares a base name; its verify/fix va
 | Pawan (API performance) | Pawan | Pawan Verify | Pawan Fix |
 | Prakash (production) | — | Prakash | Prakash Fix |
 
-**Singletons:** Sunny (orchestrator) · Maya (shared memory / context) · Deepa (standalone documentation). The full codename → slug mapping is in [`.cursor/agents/README.md`](.cursor/agents/README.md#agent-codenames).
+**Singletons:** Sunny (orchestrator) · Maya (shared memory / context) · Deepa (standalone documentation) · Hari (standalone fleet-host — deploys the global dashboard). The full codename → slug mapping is in [`.cursor/agents/README.md`](.cursor/agents/README.md#agent-codenames).
 
 ## Workflow at a glance
 
@@ -269,7 +270,9 @@ The dashboard is a read-only artifact under `.sunny/web/` — it never touches t
 
 ### Fleet view across many VPSs (optional)
 
-Run Sunny on as many VPSs as you like — each is fully independent with its own local dashboard. Deploy the collector in [`.cursor/central/`](.cursor/central/README.md) once on your **fleet domain** (domain + email only). On each worker, give Sunny **project domain + fleet domain** — Maya fetches the push token and pushes after every handoff. `https://<fleet-domain>/` shows one card per run.
+> **Step-by-step runbook:** [`FLEET-QUICKSTART.md`](FLEET-QUICKSTART.md) — exactly what to type on your **first VPS** (fleet host + build) vs. **later VPSs** (build only).
+
+Run Sunny on as many VPSs as you like — each is fully independent with its own local dashboard. **Deploy the global dashboard with an agent:** on the host that owns your **fleet domain**, invoke the **Fleet Host Agent (Hari)** once — *"Sunny, set up the fleet dashboard host. Fleet domain: `fleet.example.com` (admin@…)."* Hari brings up the central collector (`.cursor/central/`) with TLS and validates it. Then on each worker, give Sunny **project domain + fleet domain** — Maya fetches the push token and pushes after every handoff. `https://<fleet-domain>/` shows one card per run. (You still set the fleet domain's DNS A record + open 80/443; Hari checks and reports these. Manual steps remain in [`.cursor/central/README.md`](.cursor/central/README.md).)
 
 ### Nothing silently stalls (non-blocking)
 
