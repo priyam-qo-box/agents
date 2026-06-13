@@ -15,6 +15,34 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 - Backend and frontend test coverage **>= 95%** line and branch.
 - Run verification loops until exact exit phrases are emitted.
 
+## Resumability (crash / reboot / new-session safe)
+
+The pipeline is long-running, so it must **never lose its place**. All durable state lives on disk — `.sunny/context/state.json` (phase, iteration counters, `stages[]`, `completedAgents`, `lastVerdict`, `blockers`, `envKeys`), the `.sunny/context/*.md` summaries, the root `.env`, and the generated code itself. **Nothing important lives only in an agent's memory.** Maya checkpoints `state.json` **atomically after every single agent handoff**, so at most the one in-flight stage is ever repeated — never the whole run.
+
+**What can interrupt a run:** the Cursor session is closed/reopened, the VPS reboots, the machine crashes, an agent errors out, or the user stops mid-run. Docker services come back on their own (`restart: unless-stopped`); the **orchestration** is what must resume.
+
+**How to resume:** the user simply re-invokes Sunny in the same project — the original prompt again, or just **"Sunny, resume"**. Sunny always runs **Phase −1 (Resume check)** first and continues from the last checkpoint. Resuming is the default; a fresh start only happens when there is no prior state.
+
+**Idempotency makes this safe (all agents):**
+- **Generate/fix agents** must inspect the workspace first (graphify query + file checks) and **continue/patch, not duplicate**: never re-scaffold a service that already exists, never re-create a file that's already there, never regenerate a secret Maya already wrote — add only what is missing or wrong. Re-running a generate/fix agent on an already-good stage must be a safe no-op.
+- **Verify/audit agents** are already stateless (they assume no memory of prior runs), so they are inherently safe to re-run.
+- **Maya** writes `state.json` and `progress.json` via temp-file + atomic rename so a crash mid-write never corrupts state, and re-creates only missing scaffolding (never clobbers an existing `.env`, `RUN_ID`, or summary).
+
+## Phase −1 — Resume check (runs before intake, every invocation)
+
+1. **No `.sunny/context/state.json`** → fresh run → go to **Phase 0 (Intake)**.
+2. **`state.json` exists with `phase: "complete"`** → the run already finished. Report the summary and do nothing further unless the user explicitly asks for changes/another stage.
+3. **`state.json` exists and is not complete** → **RESUME**:
+   1. Read `state.json`: `phase`, all iteration counters, `stages[]`, `completedAgents`, `lastVerdict`, `blockers`, `envKeys`, `graphUpdatedAt`.
+   2. **Re-affirm environment idempotently via Maya** (`sourceAgent: resume`): ensure `.env`, `RUN_ID`, the dashboard bundle in `.sunny/web/`, and (if `fleetDomain` set) `CENTRAL_PUSH_TOKEN` exist — Maya recreates only what's missing and **never regenerates existing secrets**. Do **not** re-run intake generation.
+   3. **Restart the dashboard publisher if it's down** (early publisher in Phase 0, or confirm Nginx serves it post-Stage-5); Maya resumes fleet pushes. Re-print the dashboard URLs + `runId`.
+   4. **Confirm the graph is current:** if `graphUpdatedAt` is stale or `graphify-out/` is missing, run `graphify update <project-root>` (or `graphify .` to bootstrap) before launching the next agent.
+   5. **Find the resume point:** the current stage is the one marked `active` in `stages[]` (or the first non-`done` stage). Re-enter that stage's phase loop and **re-run its last in-flight agent** (idempotent, so safe) before continuing; **skip every stage already marked `done`.**
+   6. **Preserve iteration counters** from `state.json` so loop caps still apply across resumes (a run can't dodge its cap by restarting).
+   7. **Announce:** `Resuming {project}: stage {label} ({n}/15), iteration {i}.` Then continue the phase machine exactly as a normal run.
+
+> Resume is **safe to repeat**: if a resumed run is interrupted again, the next invocation picks up from the new checkpoint. Caps and blockers carry forward, so resuming never causes infinite loops or lost "action required" asks.
+
 ## Graphify (token-efficient context)
 
 Graphify is **pre-installed by the operator** (`uv tool install graphifyy` → `graphify install`). See `.cursor/rules/graphify.mdc`.
@@ -167,6 +195,9 @@ Each agent has a human codename (a family base name + `Verify`/`Fix`). Refer to 
 
 ```
 Frontend Input → Sunny
+  → [Phase -1] resume check: if .sunny/context/state.json exists & != complete →
+       resume from the active/first-not-done stage (skip done stages, keep counters)
+     else ↓ fresh run
   → context-agent (intake)
   → Architecture:
       architecture-agent → context-agent → architecture-verify-agent

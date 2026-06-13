@@ -278,6 +278,10 @@ Run Sunny on as many VPSs as you like — each is fully independent with its own
 
 Every verify/fix loop keeps its hard iteration cap, but the pipeline **notifies instead of halting**: when a loop gives up or an external value is missing, the item becomes a `needs-attention`/`action-required` notification on the local + fleet dashboards and Sunny continues to the next stage wherever technically possible. Only a hard technical dependency (e.g. the backend won't build) causes a real stop. Outstanding items are collected in the final production report.
 
+### Resumes from where it stopped (crash / reboot / closed session safe)
+
+The run never loses its place. All state lives on disk — `.sunny/context/state.json` (phase, iteration counters, per-stage status, verdicts), the context summaries, `.env`, and the generated code — and Maya checkpoints it **atomically after every agent handoff**. If the VPS reboots, the Cursor session closes, or an agent crashes, just re-invoke **"Sunny, resume"** (or the original prompt) in the project: Sunny runs a resume check first, skips every completed stage, re-enters the interrupted one, and continues with iteration counters and pending "action required" items intact. Every agent is **idempotent** (it patches/continues instead of duplicating), so re-running a stage is always safe. Docker services restart themselves (`restart: unless-stopped`).
+
 ### Restarts (so changes take effect)
 
 The whole system runs as a Docker Compose stack (PostgreSQL + registry + gateway + microservices + frontend + Nginx). Code/config changes only apply once the affected services are rebuilt and restarted, so:

@@ -30,6 +30,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - **No mock data** — no CSV loaders, `data.sql` dummy records, or fake seed entities. Reference/lookup data only via Liquibase changelogs.
 - **No `ddl-auto: update`** in production — schema is owned by Liquibase migrations.
 - Respect microservice **schema ownership** — no inappropriate cross-service table access.
+- **Idempotent / resume-safe.** A resume may re-run this stage. **Never duplicate** a Liquibase changeset, index, or constraint that already exists — each changeSet keeps a stable unique `id`, and you add only missing migrations. Re-applying must be a safe no-op (Liquibase tracks applied changesets); never rewrite history that already ran.
 
 ## What you evaluate and fix
 

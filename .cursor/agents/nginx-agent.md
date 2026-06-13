@@ -31,6 +31,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - **No secrets in the image.** Domain, email, and any tokens come from env/`.env`/secrets, not baked into committed config.
 - **Consume the auto-generated `.env`; never clobber it.** Maya created the root `.env` at intake (DB/JWT/registry secrets + `DOMAIN`/`ACME_EMAIL`). Read those values; if you need new keys (frontend API base URL `VITE_API_URL`/`REACT_APP_API_URL=https://<domain>/api`, or optional dashboard Basic-Auth `DASHBOARD_AUTH_USER`/`DASHBOARD_AUTH_PASSWORD`), **append** them — generate any new password with `openssl rand -base64 24`, never print it, and leave existing secrets untouched. `.env` stays gitignored.
 - Modern TLS only (TLS 1.2+), sane ciphers, OCSP stapling where available.
+- **Idempotent / resume-safe.** A resume may re-run this stage. **Reuse an existing valid certificate** instead of re-issuing (respect Let's Encrypt rate limits); don't duplicate server blocks or compose services that already exist — reconcile/patch them. Re-running on an already-configured edge must be a safe no-op.
 
 ## What you build
 

@@ -216,7 +216,8 @@ After intake Sunny prints: local dashboard URL, fleet URL (`https://<fleet-domai
 
 ## Operating instructions
 
-1. **Intake:** Capture **project domain**, **fleet domain**, and frontend path (optional email → else `admin@<project-domain>`). Never ask for passwords, tokens, or `.env`. Maya creates the full store + `.env`, fetches fleet token, starts the early publisher, prints dashboard URLs + `runId`.
+0. **Resume check (always first):** if `.sunny/context/state.json` exists and `phase != complete`, **resume** — don't restart. Re-affirm `.env`/`RUN_ID`/dashboard via Maya (`sourceAgent: resume`, recreate only what's missing), restart the publisher if down, refresh the graph if stale, then continue from the `active` (or first not-`done`) stage with iteration counters intact, skipping completed stages. Announce `Resuming {project}: stage {label} ({n}/15), iteration {i}.` Only do a fresh intake when there is no prior state.
+1. **Intake (fresh runs only):** Capture **project domain**, **fleet domain**, and frontend path (optional email → else `admin@<project-domain>`). Never ask for passwords, tokens, or `.env`. Maya creates the full store + `.env`, fetches fleet token, starts the early publisher, prints dashboard URLs + `runId`.
 2. **Delegate:** Launch one agent at a time (or parallel only when independent). Always pass context file paths and the Context Agent handoff block.
 3. **Persist:** After every agent completes, launch context-agent before the next agent.
 4. **Loop:** Re-run verify/fix or test/verify cycles until exit phrases match or max iterations hit.

@@ -385,6 +385,7 @@ docker compose -f .sunny/web/docker-compose.yml up -d
 | **A loop can't reach a clean pass** | The iteration cap stops the loop; the pipeline **does not halt** — the stage is marked `needs-attention`, items become notifications, and the run continues. Only a hard technical dependency (won't build) stops it. |
 | **Watch many VPS runs at once** | Deploy `.cursor/central/` on fleet domain via the **Fleet Host Agent (Hari)** (domain + email only). Each worker gives Sunny **project + fleet domain**; agents fetch token and push. |
 | **Central collector unreachable** | Pushes are best-effort; the local dashboard keeps working and the next handoff retries — the run is never blocked. |
+| **VPS reboots / Cursor session closes / agent crashes mid-run** | The run is checkpointed to `.sunny/context/state.json` after every handoff. Re-invoke **"Sunny, resume"** (or the original prompt) in the project — Sunny skips completed stages, re-enters the interrupted one (agents are idempotent), and continues with counters intact. Docker services auto-restart (`restart: unless-stopped`). |
 | **Disk full from Docker** | Periodic `docker system prune -af` (careful) + adequate disk per §3. |
 
 ---

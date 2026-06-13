@@ -30,6 +30,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - **No mock data**, no fake CSV files, no dummy records, no in-memory-only persistence for domain entities.
 - **Real database** via Liquibase migrations and Testcontainers-compatible config for tests.
 - **No `ddl-auto: update`** in production profiles.
+- **Idempotent / resume-safe.** This run may be a **resume** after an interrupted attempt. Before generating, **inspect what already exists** (graphify query + check the workspace for the gateway, registry, each microservice, JDL, and compose). **Never re-scaffold or duplicate** a service/entity that is already present — add only what is missing and patch what is incomplete. Re-running on an already-complete backend must be a safe no-op, not a regeneration.
 
 ## Operating principles
 

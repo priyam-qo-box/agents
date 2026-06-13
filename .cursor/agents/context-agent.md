@@ -129,11 +129,22 @@ Always read and update `state.json` on every invocation:
   "completedAgents": [],
   "graphUpdatedAt": "ISO-8601 timestamp of last graphify update",
   "stages": [
-    { "key": "intake", "label": "Intake", "status": "done|active|pending|blocked", "startedAt": "ISO", "endedAt": "ISO", "durationMs": 0, "iterations": 0, "estimateMin": 2, "verdict": "" }
+    { "key": "intake", "label": "Intake", "status": "done|active|pending|blocked|needs-attention", "startedAt": "ISO", "endedAt": "ISO", "durationMs": 0, "iterations": 0, "estimateMin": 2, "verdict": "" }
   ],
-  "updatedAt": "ISO-8601 timestamp"
+  "lastAgent": "slug of the most recently launched agent (for resume diagnostics)",
+  "resumeCount": 0,
+  "updatedAt": "ISO-8601 timestamp (checkpoint time — written atomically after every capture)"
 }
 ```
+
+### Resumability (this file is the recovery point)
+
+`state.json` is the **single source of truth for where the run is**, so a crash, reboot, or closed session loses nothing. Maintain it so Sunny's **Phase −1 resume check** can always continue safely:
+
+- **Atomic checkpoint after every capture.** Write `state.json` (and `progress.json`) to a temp file and `rename` over the target so an interrupted write never corrupts state. Stamp `updatedAt` each time. This is your durability guarantee.
+- **Mark in-progress, then done.** When a stage starts, its `stages[]` entry is `active` (in-progress); only set it `done` after the stage's exit phrase/verdict is recorded. The resume check treats the `active` stage (or first non-`done`) as the point to re-enter, so an `active` stage is simply re-run (agents are idempotent).
+- **Counters persist across resumes.** Never reset iteration counters on resume — they carry the loop caps forward so a restart can't dodge a cap or loop forever.
+- **Idempotent restore.** On `sourceAgent: resume`, do **not** re-initialize: recreate only what is missing (`.env` keys, `RUN_ID`, the `.sunny/web/` bundle, fleet token), never regenerate existing secrets or overwrite summaries. Increment `resumeCount`, set `lastAgent`, refresh `progress.json`, and resume fleet pushes.
 
 `stages[]` is the dashboard's source of truth (15 entries, fixed order). Seed it at intake from the **dashboard stage map** below; each entry tracks `status`, `startedAt`/`endedAt`/`durationMs`, `iterations`, and a default `estimateMin`. The progress dashboard (`.sunny/web/progress.json`) is derived from `stages[]` + `workflowStartedAt` (see "Progress dashboard" below).
 
@@ -338,6 +349,16 @@ Create or reset the store:
    - **`localDashboardUrl`:** detect server IP, set `http://<ip>:8787/agentprogress.html` (update to `https://<domain>/agentprogress.html` after Nginx).
    - **Fleet (from intake `fleetDomain` only):** write `FLEET_DOMAIN`, `CENTRAL_DASHBOARD_URL`, fetch `CENTRAL_PUSH_TOKEN` from `/api/fleet-config`, set `state.json.centralUrl` + `project.fleetDomain`, perform **first fleet push** after initial `progress.json`.
 
+### 1.5 On resume (`sourceAgent: resume`)
+
+Sunny calls you with `sourceAgent: resume` when a prior run is being continued (`state.json` exists and `phase != complete`). **Do not re-initialize the run.** Instead, restore idempotently:
+
+1. Read `state.json` and report the resume point: `phase`, the `active`/first-not-done stage, iteration counters, open `blockers`.
+2. **Recreate only what's missing** — never clobber existing state: ensure `.env` exists with the minimum keys (append only missing ones; never regenerate existing secrets), `RUN_ID` is present, the `.sunny/web/` bundle exists (re-copy only if absent), and `CENTRAL_PUSH_TOKEN` is set if `fleetDomain` is configured (re-fetch from `/api/fleet-config` if missing).
+3. Increment `resumeCount`, set `lastAgent`, stamp `updatedAt` (atomic write).
+4. Rewrite `progress.json` from current state and perform a fleet push so both dashboards immediately show the run is live again.
+5. Return a handoff telling Sunny exactly which stage/agent to re-enter (the `active` stage's next agent). Do not advance the phase — Sunny re-runs the interrupted stage idempotently.
+
 ### 2. On agent output capture (every invocation)
 
 You will receive:
@@ -349,9 +370,9 @@ You will receive:
 
 1. Read current `state.json` and all relevant context files.
 2. Summarize the agent output into the appropriate file (see templates below).
-3. Update `state.json`: phase, `lastVerdict`, increment counters, append to `completedAgents`, update `stages[]` (status/timing/iterations), set `updatedAt`.
+3. Update `state.json`: phase, `lastVerdict`, increment counters, append to `completedAgents`, set `lastAgent`, update `stages[]` (status/timing/iterations — mark the finished stage `done` only once its exit verdict is recorded; the next stage becomes `active`), set `updatedAt`. **Write atomically** (temp file + rename) so an interrupted write never corrupts the run's recovery point.
 4. If the source agent emitted a verdict line, record it exactly in `lastVerdict`.
-5. Rewrite `.sunny/web/progress.json` from the updated state (see "Progress dashboard" above).
+5. Rewrite `.sunny/web/progress.json` from the updated state (see "Progress dashboard" above), also via atomic write.
 6. Return a **handoff package** for the next agent (see Output expectations).
 
 ### 3. On context retrieval (when Sunny asks for context only)
