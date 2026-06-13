@@ -10,10 +10,14 @@
 # ===========================================================================
 
 # ----- Secrets & environment -------------------------------------------------
+# Keep the templates (no real secrets in them). NOTE: .gitignore has no inline
+# comments — the re-include patterns must be on their own lines, after the
+# ignore rules, with no trailing text.
 .env
 .env.*
 *.env
-!.env.example          # keep the template (no real secrets in it)
+!.env.example
+!**/.env.example
 secrets/
 *.secret
 credentials.json
@@ -101,6 +105,12 @@ k6-results/
 *.jtl
 gatling-results/
 load-test-output/
+
+# ----- Python (fleet collector is stdlib Python; ignore build artifacts) -----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
 
 # ----- Logs & temp -----------------------------------------------------------
 *.log

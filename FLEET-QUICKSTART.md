@@ -157,3 +157,8 @@ Sunny never auto-launches it during a backend build.
 See also: [`.cursor/central/README.md`](.cursor/central/README.md),
 [`INSTALL.md`](INSTALL.md) (Pattern C), and
 [`.cursor/agents/fleet-host-agent.md`](.cursor/agents/fleet-host-agent.md).
+
+## Production notes
+
+- **Visibility only, not HA.** The fleet host is a progress board — single container, file-backed, no clustering. Worker runs never depend on it; they retry pushes if it's down.
+- **Internet-facing?** If `global.…` is on the public internet, turn on **Basic-Auth for the dashboard** (`/` + `/api/runs` feed) using the commented lines in `nginx-central.conf` — workers still auto-fetch the push token from `/api/fleet-config`. Details: central README **"Exposure model"**.

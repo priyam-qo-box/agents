@@ -101,12 +101,22 @@ curl -fsS -X POST "$CENTRAL_DASHBOARD_URL/api/runs/$RUN_ID" \
 
 The push is **best-effort**: if the fleet host is down, the local run continues and retries on the next handoff.
 
+## Scope: visibility only (not HA)
+
+This collector is a **progress visibility board**, not a high-availability or control-plane service. It aggregates status snapshots so you can watch many runs in one place. It is intentionally simple (single container, file-backed, no clustering/replication). If it goes down, **worker runs are unaffected** — they keep building locally and retry the best-effort push on the next handoff. Don't put anything load-bearing behind it, and don't treat its data as a system of record.
+
 ## Security (production-hardened)
 
-- Writes require a valid **Bearer token**; reads (`/api/runs`, dashboard) are public.
-  To make the fleet view private too, enable Nginx **Basic-Auth** (commented in `nginx-central.conf`).
-- `runId` is sanitized server-side (no path traversal); POST bodies are size-capped; per-IP **rate limiting** (`limit_req`) on the edge.
+- Writes (`POST /api/runs/<id>`) require a valid **Bearer token**. `runId` is sanitized server-side (no path traversal); POST bodies are size-capped; per-IP **rate limiting** (`limit_req`) on the edge.
 - **Modern TLS only** (TLS 1.2/1.3, Mozilla-intermediate ciphers, OCSP stapling, `ssl_session_tickets off`).
 - **Security headers** on every response: HSTS (2y, includeSubDomains), `X-Content-Type-Options`, `X-Frame-Options: DENY`, a locked-down `Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`. The collector also emits nosniff / frame-deny so the TLS-less fallback stays safe.
 - **Least privilege:** the collector image runs as a **non-root** user; both services use `no-new-privileges`; only Nginx publishes 80/443 (the collector's 8080 is internal). Log rotation is capped (json-file, 10m × 5).
 - Tokens and `.env` are **gitignored**. On first start the collector **auto-generates** a push token (saved to `data/fleet_push.token`). Workers fetch it via `/api/fleet-config` — you never distribute it manually. To rotate: set `COLLECTOR_TOKENS` explicitly and restart.
+
+### Exposure model — read this before exposing it to the internet
+
+By default, **reads are public**: the dashboard (`/`, `/api/runs`) and **`/api/fleet-config`** are open. `/api/fleet-config` returns the push token so worker agents can self-configure with zero manual setup. That token is **push-only** (it lets a caller upload status snapshots — it grants no read access and no code execution), but a public `/api/fleet-config` means **anyone who can reach the URL can fetch it and POST runs**. On a private network or low-sensitivity setup that's a fine trade for zero-config workers. If the fleet domain is **internet-facing**, harden it:
+
+- **Option A — make the board private, keep workers zero-config (recommended).** Put **Basic-Auth on the human routes only** (`/` and `/api/runs`), leaving `/api/fleet-config` + `POST /api/runs/<id>` open for workers (still Bearer-protected for writes, still rate-limited). The dashboard then needs a password to view, while workers are unchanged. Location-scoped example is in `nginx-central.conf` (commented).
+- **Option B — full lockdown.** Restrict `/api/fleet-config` and `POST /api/runs/` to your worker VPS IPs with an Nginx `allow`/`deny` allowlist (or a private network/VPN), and Basic-Auth the dashboard. Most secure; requires knowing worker IPs.
+- **Rotate the token** any time: set `COLLECTOR_TOKENS=<new>` in `.env` and restart; workers re-fetch on their next push (or pin IPs as above).

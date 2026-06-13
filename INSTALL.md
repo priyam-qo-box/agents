@@ -93,6 +93,10 @@ graphify .
 
 Maya auto-generates `RUN_ID`, all secrets, fetches the fleet push token, starts the local publisher, and pushes to the global board. **You never copy tokens or hand-write `.env`.**
 
+**Fleet host scope:** the collector is **visibility only, not HA** — a single file-backed board. If it goes down, worker runs continue locally and retry pushes; nothing load-bearing depends on it. See [`.cursor/central/README.md`](.cursor/central/README.md) ("Scope: visibility only").
+
+**Internet-facing fleet domain?** By default the dashboard and `/api/fleet-config` are public (workers need the latter for zero-config). If the fleet domain is on the public internet, enable **Basic-Auth on the human routes** (`/` + `/api/runs` index) per `nginx-central.conf` — workers stay zero-config. See README "Exposure model".
+
 **Windows → Linux:** [`.gitattributes`](.gitattributes) forces LF for shell scripts and Docker files so `mvnw` / `gradlew` work after clone on the VPS.
 
 ---
@@ -385,6 +389,8 @@ docker compose -f .sunny/web/docker-compose.yml up -d
 | **A loop can't reach a clean pass** | The iteration cap stops the loop; the pipeline **does not halt** — the stage is marked `needs-attention`, items become notifications, and the run continues. Only a hard technical dependency (won't build) stops it. |
 | **Watch many VPS runs at once** | Deploy `.cursor/central/` on fleet domain via the **Fleet Host Agent (Hari)** (domain + email only). Each worker gives Sunny **project + fleet domain**; agents fetch token and push. |
 | **Central collector unreachable** | Pushes are best-effort; the local dashboard keeps working and the next handoff retries — the run is never blocked. |
+| **`.env.example` missing after clone** | Fixed in repo: templates are tracked (`!.env.example`, `!**/.env.example`). If you have an older clone, pull latest or copy templates manually from the repo. |
+| **Fleet board on the public internet** | Enable Basic-Auth on dashboard routes (`/` + `/api/runs` index) in `nginx-central.conf` — see central README "Exposure model". Workers still fetch `/api/fleet-config` without Basic-Auth. |
 | **VPS reboots / Cursor session closes / agent crashes mid-run** | The run is checkpointed to `.sunny/context/state.json` after every handoff. Re-invoke **"Sunny, resume"** (or the original prompt) in the project — Sunny skips completed stages, re-enters the interrupted one (agents are idempotent), and continues with counters intact. Docker services auto-restart (`restart: unless-stopped`). |
 | **Disk full from Docker** | Periodic `docker system prune -af` (careful) + adequate disk per §3. |
 
