@@ -15,6 +15,11 @@ This repository contains **agent definitions and orchestration rules** for Curso
 ├── rules/
 │   ├── sunny-orchestrator.mdc      # Executable playbook the orchestrator follows
 │   └── graphify.mdc                # Query-first context via graphify-out/ (token savings)
+├── dashboard/                      # Live progress dashboard bundle (copied to .sunny/web/ at intake)
+│   ├── agentprogress.html          # Self-contained progress UI (auto-refresh every 5 min)
+│   ├── progress.json               # Seed/live progress feed Maya rewrites each handoff
+│   ├── docker-compose.yml          # Early publisher (nginx:alpine) — visible from agent #1
+│   └── nginx-progress.conf         # Early publisher static config
 └── agents/
     ├── README.md                          # Deep dive on how the Sunny system works
     ├── ARCHITECTURE.md                    # All architecture + workflow diagrams
@@ -235,9 +240,18 @@ These agents run inside **Cursor**. The `.cursor/agents/*.md` files are picked u
 
 In a Cursor chat, invoke Sunny and point it at your frontend:
 
-> Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
+> Sunny, build the JHipster microservices backend for the frontend in `./frontend` and use the domain `example.com` (admin@example.com).
 
-Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Provide your **domain** and a **Certbot email** at kickoff — Sunny captures them at intake and Naveen uses them to connect the frontend + gateway to the domain over HTTPS. Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+
+### Watch live progress
+
+From the **first** agent, Sunny serves a live dashboard showing completed/pending stages, the current phase, time consumed, estimated total, and time remaining (auto-refreshing every 5 minutes):
+
+- **Early (intake → before Nginx):** a tiny static publisher → `http://<server-ip>:8787/agentprogress.html`.
+- **From the Nginx stage onward:** the same page on your domain over HTTPS → `https://<domain>/agentprogress.html` (the early publisher is retired).
+
+The dashboard is a read-only artifact under `.sunny/web/` — it never touches the generated backend. Maya (the Context Agent) rewrites `.sunny/web/progress.json` after every agent handoff.
 
 ### Run the documentation agent (standalone)
 

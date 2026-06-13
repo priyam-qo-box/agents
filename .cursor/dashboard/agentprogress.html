@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Hard reload every 5 minutes so a long-idle tab always picks up the latest build state. -->
+  <meta http-equiv="refresh" content="300" />
+  <title>Sunny — Agent Progress</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1c2430;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #9198a1;
+      --accent: #2f81f7;
+      --done: #3fb950;
+      --active: #d29922;
+      --blocked: #f85149;
+      --pending: #6e7681;
+      --track: #21262d;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f8fa; --panel: #ffffff; --panel-2: #f3f6f9; --border: #d0d7de;
+        --text: #1f2328; --muted: #59636e; --track: #eaeef2; --shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(31,35,40,.08);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; padding: 24px; max-width: 1100px; margin: 0 auto;
+    }
+    a { color: var(--accent); }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+    h1 .sun { color: var(--active); }
+    .sub { color: var(--muted); font-size: 13px; }
+    .status-pill {
+      margin-left: auto; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;
+      border: 1px solid var(--border); text-transform: uppercase; letter-spacing: .4px;
+    }
+    .status-running { color: var(--active); border-color: color-mix(in srgb, var(--active) 50%, var(--border)); }
+    .status-complete { color: var(--done); border-color: color-mix(in srgb, var(--done) 50%, var(--border)); }
+    .status-blocked { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 50%, var(--border)); }
+    .status-stale { color: var(--muted); }
+
+    .bar-wrap { margin: 18px 0 22px; }
+    .bar-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .bar-head .now { color: var(--muted); }
+    .bar-head .now b { color: var(--text); }
+    .track { height: 14px; background: var(--track); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+    .fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--done)); border-radius: 999px; transition: width .6s ease; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+    .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+    .card .value { font-size: 22px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .card .value.sm { font-size: 16px; font-weight: 600; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
+    tr:last-child td { border-bottom: 0; }
+    tr.row-active td { background: color-mix(in srgb, var(--active) 10%, transparent); }
+    tr.row-blocked td { background: color-mix(in srgb, var(--blocked) 12%, transparent); }
+    td.num { text-align: right; color: var(--muted); }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 9px; vertical-align: baseline; }
+    .dot.done { background: var(--done); }
+    .dot.active { background: var(--active); box-shadow: 0 0 0 0 color-mix(in srgb, var(--active) 70%, transparent); animation: pulse 1.6s infinite; }
+    .dot.blocked { background: var(--blocked); }
+    .dot.pending { background: var(--pending); }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--active) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+    .st { color: var(--muted); font-size: 12px; }
+    .st.done { color: var(--done); }
+    .st.active { color: var(--active); }
+    .st.blocked { color: var(--blocked); }
+
+    .blockers { margin-top: 18px; border-color: color-mix(in srgb, var(--blocked) 45%, var(--border)); }
+    .blockers h2 { color: var(--blocked); }
+    .blockers ul { margin: 0; padding: 12px 16px 14px 34px; }
+    .blockers li { margin: 4px 0; }
+
+    footer { margin-top: 18px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .err { color: var(--blocked); }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="sun">&#9728;</span> Sunny — Agent Progress</h1>
+    <span class="sub" id="project">&nbsp;</span>
+    <span class="status-pill status-stale" id="statusPill">loading</span>
+  </header>
+  <div class="sub" id="stageLine">Connecting to progress feed&hellip;</div>
+
+  <div class="bar-wrap">
+    <div class="bar-head">
+      <span><b id="pct">0%</b> complete</span>
+      <span class="now"><b id="doneCount">0</b> / <span id="totalCount">0</span> stages</span>
+    </div>
+    <div class="track"><div class="fill" id="fill"></div></div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="label">Current stage</div><div class="value sm" id="currentStage">&mdash;</div></div>
+    <div class="card"><div class="label">Time consumed</div><div class="value" id="elapsed">&mdash;</div></div>
+    <div class="card"><div class="label">Est. remaining</div><div class="value" id="remaining">&mdash;</div></div>
+    <div class="card"><div class="label">Est. total</div><div class="value" id="total">&mdash;</div></div>
+    <div class="card"><div class="label">ETA</div><div class="value sm" id="eta">&mdash;</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Stages</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Stage</th><th>Status</th><th class="num">Iterations</th><th class="num">Duration</th></tr>
+      </thead>
+      <tbody id="stageBody">
+        <tr><td colspan="5" class="muted" style="padding:18px 16px">Waiting for the first agent to report&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel blockers" id="blockersPanel" style="display:none">
+    <h2>Blockers</h2>
+    <ul id="blockersList"></ul>
+  </div>
+
+  <footer>
+    <span>Auto-refreshes every 5 min &middot; live data every 60s</span>
+    <span id="feed" class="muted"></span>
+    <span id="updated" class="muted"></span>
+  </footer>
+
+  <script>
+    "use strict";
+    var POLL_MS = 60000;     // re-fetch progress.json every 60s
+    var TICK_MS = 1000;      // recompute live clocks every second
+    var data = null;         // last good payload
+    var fetchedAt = 0;       // performance.now() when payload arrived
+    var lastError = null;
+
+    function fmtDur(ms) {
+      if (ms == null || isNaN(ms) || ms < 0) ms = 0;
+      var s = Math.floor(ms / 1000);
+      var h = Math.floor(s / 3600); s -= h * 3600;
+      var m = Math.floor(s / 60); s -= m * 60;
+      if (h > 0) return h + "h " + (m < 10 ? "0" : "") + m + "m";
+      if (m > 0) return m + "m " + (s < 10 ? "0" : "") + s + "s";
+      return s + "s";
+    }
+    function fmtClock(d) {
+      try { return new Date(d).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }); }
+      catch (e) { return "—"; }
+    }
+    function ms(v) { var t = Date.parse(v); return isNaN(t) ? null : t; }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+    function $(id) { return document.getElementById(id); }
+
+    function render() {
+      if (!data) return;
+      var now = Date.now();
+      var sinceFetch = performance.now() - fetchedAt;
+
+      var stages = Array.isArray(data.stages) ? data.stages : [];
+      var total = (data.counts && data.counts.total) || stages.length || 0;
+      var done = (data.counts && data.counts.done);
+      if (done == null) done = stages.filter(function (s) { return s.status === "done"; }).length;
+      var pct = total ? Math.round((done / total) * 100) : 0;
+
+      // Project + status
+      $("project").textContent = data.project && data.project.name
+        ? (data.project.name + (data.project.domain ? "  ·  " + data.project.domain : ""))
+        : (data.project && data.project.domain ? data.project.domain : "");
+
+      var status = data.status || "running";
+      var pill = $("statusPill");
+      var stale = sinceFetch > POLL_MS * 3 || !!lastError;
+      pill.textContent = stale ? "stale" : status;
+      pill.className = "status-pill " + (stale ? "status-stale" : ("status-" + status));
+
+      $("stageLine").innerHTML = data.currentStageLabel
+        ? ("Currently running: <b>" + esc(data.currentStageLabel) + "</b>" + (data.phase ? " <span class='muted'>(" + esc(data.phase) + ")</span>" : ""))
+        : (status === "complete" ? "All stages complete." : "In progress&hellip;");
+
+      // Progress bar
+      $("pct").textContent = pct + "%";
+      $("fill").style.width = pct + "%";
+      $("doneCount").textContent = done;
+      $("totalCount").textContent = total;
+      $("currentStage").textContent = data.currentStageLabel || (status === "complete" ? "Complete" : "—");
+
+      // Live clocks
+      var startMs = ms(data.workflowStartedAt);
+      var elapsed = data.timeConsumedMs;
+      if (status !== "complete" && startMs) elapsed = now - startMs;          // tick up live while running
+      $("elapsed").textContent = fmtDur(elapsed);
+
+      var remaining = data.estimatedRemainingMs;
+      if (status === "complete") remaining = 0;
+      else if (remaining != null) remaining = Math.max(0, remaining - sinceFetch); // tick down live
+      $("remaining").textContent = status === "complete" ? "—" : fmtDur(remaining);
+
+      $("total").textContent = data.estimatedTotalMs != null ? fmtDur(data.estimatedTotalMs) : "—";
+
+      var etaMs = ms(data.eta);
+      if (status === "complete") $("eta").textContent = "done";
+      else if (etaMs) $("eta").textContent = fmtClock(etaMs);
+      else if (remaining != null) $("eta").textContent = fmtClock(now + remaining);
+      else $("eta").textContent = "—";
+
+      // Stage table
+      if (stages.length) {
+        var rows = stages.map(function (s, i) {
+          var st = s.status || "pending";
+          var dur = s.durationMs;
+          if (st === "active" && ms(s.startedAt)) dur = now - ms(s.startedAt);
+          var durTxt = (st === "pending") ? "—" : fmtDur(dur);
+          var iters = (s.iterations != null && s.iterations > 0) ? s.iterations : "—";
+          var rowCls = st === "active" ? " class='row-active'" : (st === "blocked" ? " class='row-blocked'" : "");
+          return "<tr" + rowCls + ">"
+            + "<td class='num'>" + (i + 1) + "</td>"
+            + "<td><span class='dot " + st + "'></span>" + esc(s.label || s.key) + "</td>"
+            + "<td class='st " + st + "'>" + st + "</td>"
+            + "<td class='num'>" + iters + "</td>"
+            + "<td class='num'>" + durTxt + "</td>"
+            + "</tr>";
+        }).join("");
+        $("stageBody").innerHTML = rows;
+      }
+
+      // Blockers
+      var blockers = Array.isArray(data.blockers) ? data.blockers : [];
+      if (blockers.length) {
+        $("blockersPanel").style.display = "";
+        $("blockersList").innerHTML = blockers.map(function (b) {
+          return "<li>" + esc(typeof b === "string" ? b : (b.message || JSON.stringify(b))) + "</li>";
+        }).join("");
+      } else {
+        $("blockersPanel").style.display = "none";
+      }
+
+      // Footer
+      $("updated").textContent = data.generatedAt ? ("updated " + fmtClock(data.generatedAt)) : "";
+      $("feed").innerHTML = lastError
+        ? "<span class='err'>feed unreachable — retrying</span>"
+        : "feed ok";
+    }
+
+    function load() {
+      // Cache-bust so proxies never serve a stale snapshot.
+      fetch("progress.json?_=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (json) { data = json; fetchedAt = performance.now(); lastError = null; render(); })
+        .catch(function (e) {
+          lastError = e;
+          if (!data) {
+            $("stageLine").innerHTML = "<span class='err'>Could not load progress.json.</span> "
+              + "<span class='muted'>Make sure the page is served from the same folder as progress.json (the publisher serves both).</span>";
+            $("statusPill").textContent = "no feed";
+          }
+          render();
+        });
+    }
+
+    load();
+    setInterval(load, POLL_MS);
+    setInterval(render, TICK_MS);
+  </script>
+</body>
+</html>

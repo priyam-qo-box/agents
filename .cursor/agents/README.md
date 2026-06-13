@@ -237,8 +237,9 @@ sequenceDiagram
     participant P as Production Standards
     participant PF as Production Fix
 
-    U->>S: Frontend + requirements
-    S->>C: Intake (create project-context.md, state.json)
+    U->>S: Frontend + requirements + domain + Certbot email
+    S->>C: Intake (project-context.md, state.json, seed .sunny/web dashboard)
+    S->>U: Start early publisher -> http://server-ip:8787/agentprogress.html
 
     Note over S,A: Stage 1 - Architecture loop (max 5)
     S->>A: Design blueprint + boilerplate
@@ -445,7 +446,13 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ├── api-performance-report.md / -verify-report.md / -fix-log.md  # API performance stage
 ├── production-report.md           # Comprehensive final report (audits all prior stages)
 ├── production-fix-log.md          # History of production remediation cycles
-└── state.json                     # phase, loop counters, lastVerdict, blockers
+└── state.json                     # phase, loop counters, lastVerdict, blockers, project (domain), stage timing
+
+.sunny/web/                        # Live progress dashboard (read-only; never touches the generated backend)
+├── agentprogress.html             # Self-contained dashboard (auto-refresh every 5 min)
+├── progress.json                  # Live feed Maya rewrites every handoff
+├── docker-compose.yml             # Early publisher (nginx:alpine, port 8787)
+└── nginx-progress.conf            # Early publisher static config
 ```
 
 ### `state.json` drives the loops
@@ -453,6 +460,8 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ```json
 {
   "workflowId": "...",
+  "project": { "name": "Acme", "domain": "example.com", "acmeEmail": "admin@example.com" },
+  "workflowStartedAt": "2026-06-12T06:00:00Z",
   "phase": "testing_backend",
   "architectureVerifyIterations": 1,
   "backendVerifyIterations": 2,
@@ -476,9 +485,22 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
   "blockers": [],
   "completedAgents": ["context-agent", "jhipster-backend-agent", "jhipster-verify-agent"],
   "graphUpdatedAt": "2026-06-12T06:18:00Z",
+  "stages": [
+    { "key": "intake", "label": "Intake", "status": "done", "durationMs": 90000, "iterations": 0 },
+    { "key": "testing_backend", "label": "Backend testing", "status": "active", "startedAt": "2026-06-12T06:19:00Z", "iterations": 1 }
+  ],
   "updatedAt": "2026-06-12T06:20:00Z"
 }
 ```
+
+### Live progress dashboard (`.sunny/web/`)
+
+The user gives a **domain + Certbot email** at intake (single host: `/` → frontend, `/api` → gateway). From the **first** agent, Maya keeps `.sunny/web/progress.json` current after every handoff and a self-contained `agentprogress.html` renders it — completed/pending stages, current phase, time consumed, estimated total, time remaining, ETA — auto-refreshing every 5 minutes.
+
+- **Intake → before Nginx:** a tiny static publisher serves it at `http://<server-ip>:8787/agentprogress.html`.
+- **Nginx stage → done:** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS and the early publisher is retired.
+
+`state.json` carries the `project` block, `workflowStartedAt`, and a `stages[]` array (status + timing + iterations) that the dashboard derives from.
 
 ---
 

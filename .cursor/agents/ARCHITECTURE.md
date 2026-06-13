@@ -32,9 +32,11 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 - **17 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
 - **Pipeline order:** architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
+- **Domain at intake:** the user provides a single **domain** + **Certbot email** at kickoff (`/` → frontend, `/api` → gateway); Naveen uses them at the Nginx stage.
+- **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend.
 - **Production agent** audits every prior stage's completeness (do's and don'ts) and emits one comprehensive final report.
 - **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
-- **One writer of shared memory:** `context-agent` owns `.sunny/context/`.
+- **One writer of shared memory:** `context-agent` owns `.sunny/context/` and `.sunny/web/`.
 
 ### Agent codenames
 
@@ -270,7 +272,8 @@ The strict call order with all loops and their exact exit phrases.
 
 ```mermaid
 flowchart TD
-    Start([Frontend Input]) --> Intake["Intake<br/>context-agent creates<br/>project-context.md + state.json"]
+    Start(["Frontend Input<br/>+ domain + Certbot email"]) --> Intake["Intake<br/>context-agent creates<br/>project-context.md + state.json<br/>+ seeds .sunny/web dashboard"]
+    Intake --> Pub["Early publisher<br/>http://server-ip:8787/agentprogress.html"]
 
     Intake --> AGen[architecture-agent]
     AGen --> PA1["context-agent<br/>architecture-summary.md"]
@@ -617,8 +620,9 @@ sequenceDiagram
     participant P as Production Standards
     participant PF as Production Fix
 
-    U->>S: Frontend + requirements
-    S->>C: Intake (project-context.md, state.json)
+    U->>S: Frontend + requirements + domain + Certbot email
+    S->>C: Intake (project-context.md, state.json, seed .sunny/web dashboard)
+    S->>U: Start early publisher -> http://server-ip:8787/agentprogress.html
 
     rect rgb(120,120,120)
     note right of S: Stage 1 - Architecture (max 5)
@@ -828,7 +832,15 @@ flowchart LR
         ST[state.json]
     end
 
+    subgraph web [".sunny/web/ (live dashboard)"]
+        HTML[agentprogress.html]
+        PJSON[progress.json]
+        PUB[docker-compose.yml + nginx-progress.conf]
+    end
+
     Ctx[context-agent] -->|writes| store
+    Ctx -->|"writes every handoff"| web
+    PJSON -->|"early publisher / Naveen on domain"| Viewer["Browser<br/>agentprogress.html"]
 
     PC --> ARC[architecture-agent]
     AVR --> ARC

@@ -183,9 +183,17 @@ Frontend Input
 - Enterprise API standards: REST, versioning, OpenAPI, RFC 7807 errors, JWT/OAuth2, RBAC.
 - Production readiness: Docker, logging, monitoring, externalized config.
 
+## Live progress dashboard
+
+A web dashboard is visible from the **first** agent so the user can watch progress (completed/pending stages, current phase, time consumed, estimated total, time remaining, ETA).
+
+- Maya seeds `.sunny/web/` at intake and rewrites `.sunny/web/progress.json` on every handoff (read-only static files — they never touch the generated backend).
+- **Intake → Stage 4:** you start a tiny static publisher (`docker compose -f .sunny/web/docker-compose.yml up -d`, or `python -m http.server 8787 --directory .sunny/web`) → `http://<server-ip>:8787/agentprogress.html`.
+- **Stage 5 → done:** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS; you stop the early publisher.
+
 ## Operating instructions
 
-1. **Intake:** Understand the frontend path, user requirements, and constraints. Ensure context-agent creates `project-context.md`.
+1. **Intake:** Understand the frontend path, user requirements, and constraints. **Capture the deployment domain (single host) and Certbot email** the user provides at kickoff (ask once if missing — required before the Nginx stage). Ensure context-agent creates `project-context.md` (Deployment & domain), `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), and the `.sunny/web/` dashboard bundle; then start the early progress publisher and share the URL.
 2. **Delegate:** Launch one agent at a time (or parallel only when independent). Always pass context file paths and the Context Agent handoff block.
 3. **Persist:** After every agent completes, launch context-agent before the next agent.
 4. **Loop:** Re-run verify/fix or test/verify cycles until exit phrases match or max iterations hit.

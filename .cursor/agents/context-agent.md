@@ -78,6 +78,12 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 ├── production-report.md           # Latest Production Standards Agent audit (comprehensive final report)
 ├── production-fix-log.md          # History of production remediation cycles
 └── state.json                     # Machine-readable workflow state
+
+.sunny/web/                        # Live progress dashboard bundle (served read-only; never touches the generated backend)
+├── agentprogress.html             # Self-contained dashboard (copied verbatim from .cursor/dashboard/agentprogress.html)
+├── progress.json                  # Live progress feed — YOU rewrite this on every capture
+├── docker-compose.yml             # Early publisher (nginx:alpine) — copied from .cursor/dashboard/
+└── nginx-progress.conf            # Early publisher server config — copied from .cursor/dashboard/
 ```
 
 ## state.json schema
@@ -87,6 +93,12 @@ Always read and update `state.json` on every invocation:
 ```json
 {
   "workflowId": "uuid-or-timestamp",
+  "project": {
+    "name": "project name or empty",
+    "domain": "example.com (single host: / -> frontend, /api -> gateway)",
+    "acmeEmail": "admin@example.com (for Certbot/Let's Encrypt)"
+  },
+  "workflowStartedAt": "ISO-8601 timestamp set once at intake",
   "phase": "intake | architecture | architecture_verify | architecture_fix | backend | backend_verify | issue_resolution | database | database_verify | database_fix | nginx | nginx_verify | nginx_fix | testing_backend | testing_frontend | testing_system | swagger | javadoc | api_collection | api_testing | api_performance | production | production_fix | complete | blocked",
   "architectureVerifyIterations": 0,
   "backendVerifyIterations": 0,
@@ -110,9 +122,14 @@ Always read and update `state.json` on every invocation:
   "blockers": [],
   "completedAgents": [],
   "graphUpdatedAt": "ISO-8601 timestamp of last graphify update",
+  "stages": [
+    { "key": "intake", "label": "Intake", "status": "done|active|pending|blocked", "startedAt": "ISO", "endedAt": "ISO", "durationMs": 0, "iterations": 0, "estimateMin": 2, "verdict": "" }
+  ],
   "updatedAt": "ISO-8601 timestamp"
 }
 ```
+
+`stages[]` is the dashboard's source of truth (15 entries, fixed order). Seed it at intake from the **dashboard stage map** below; each entry tracks `status`, `startedAt`/`endedAt`/`durationMs`, `iterations`, and a default `estimateMin`. The progress dashboard (`.sunny/web/progress.json`) is derived from `stages[]` + `workflowStartedAt` (see "Progress dashboard" below).
 
 **Graphify freshness:** after each capture from a code-changing agent, set `graphUpdatedAt` to confirm the agent ran `graphify update <project-root>`. If it was skipped, leave `graphUpdatedAt` stale, flag it in the handoff, and tell Sunny to run `graphify update` before the next agent.
 
@@ -187,15 +204,61 @@ Increment the matching counter after each verify run:
 - `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations` after each matching documentation/API verify run.
 - `productionVerifyIterations` after each production-standards-agent run.
 
+## Progress dashboard (`.sunny/web/`)
+
+You are the **single writer** of the live progress dashboard. It must be web-visible from the very first agent and stay accurate to the end. It is a read-only static artifact under `.sunny/web/` — it never touches the generated backend.
+
+### Dashboard stage map (fixed order, 15 stages)
+
+Each `phase` value maps to exactly one dashboard stage. Seed `stages[]` from this table at intake (all `pending` except `intake` = `active`). Estimates are starting defaults in minutes; the dashboard recalibrates from actuals.
+
+| # | stage `key` | label | phases that map to this stage | `estimateMin` |
+|---|-------------|-------|-------------------------------|---------------|
+| 1 | `intake` | Intake | `intake` | 2 |
+| 2 | `architecture` | Architecture | `architecture`, `architecture_verify`, `architecture_fix` | 15 |
+| 3 | `backend` | Backend generation | `backend` | 20 |
+| 4 | `backend_verify` | Backend verification | `backend_verify`, `issue_resolution` | 15 |
+| 5 | `database` | Database | `database`, `database_verify`, `database_fix` | 15 |
+| 6 | `nginx` | Nginx & SSL edge | `nginx`, `nginx_verify`, `nginx_fix` | 15 |
+| 7 | `testing_backend` | Backend testing | `testing_backend` | 40 |
+| 8 | `testing_frontend` | Frontend testing | `testing_frontend` | 40 |
+| 9 | `testing_system` | System integration testing | `testing_system` | 25 |
+| 10 | `swagger` | Swagger / OpenAPI | `swagger` | 12 |
+| 11 | `javadoc` | Javadoc | `javadoc` | 10 |
+| 12 | `api_collection` | API collection | `api_collection` | 12 |
+| 13 | `api_testing` | API tests | `api_testing` | 15 |
+| 14 | `api_performance` | API performance | `api_performance` | 20 |
+| 15 | `production` | Production | `production`, `production_fix` | 20 |
+
+> Note `backend` and `backend_verify` are **separate** dashboard stages even though both live in `state.json.phase` family; map `issue_resolution` to `backend_verify`. The `complete` phase marks `production` done; `blocked` marks the current stage `blocked`.
+
+### How to maintain it
+
+**At intake** (step 1 below): copy `.cursor/dashboard/agentprogress.html`, `docker-compose.yml`, and `nginx-progress.conf` verbatim into `.sunny/web/`, set `workflowStartedAt`, seed `state.json.stages[]` from the map, then write the first `.sunny/web/progress.json`.
+
+**On every capture**: after updating `state.json`, recompute and rewrite `.sunny/web/progress.json`:
+1. Resolve the current dashboard stage from `phase` (via the map). Mark every earlier stage `done`, the current stage `active`, later stages `pending`. When `phase` is `complete`, mark all `done`; when `blocked`, mark the current stage `blocked`.
+2. Stamp `startedAt` the first time a stage becomes active, `endedAt`/`durationMs` when it transitions to `done`. Mirror the relevant verify counter into the stage's `iterations`.
+3. Derive the feed:
+   - `timeConsumedMs = now - workflowStartedAt`
+   - `doneEstimateMin = Σ estimateMin of done stages`; `doneActualMin = Σ actual minutes of done stages`
+   - `pace = doneActualMin / doneEstimateMin` (use `1.0` until at least one stage is done; clamp to `[0.5, 3]`)
+   - `remainingMin = (Σ estimateMin of pending + active stages) * pace`
+   - `estimatedRemainingMs = remainingMin * 60000`; `estimatedTotalMs = timeConsumedMs + estimatedRemainingMs`; `eta = now + estimatedRemainingMs`
+4. Write `progress.json` with: `project`, `generatedAt = now`, `workflowStartedAt`, `status` (`running`/`complete`/`blocked`), `phase`, `currentStage`/`currentStageLabel`, `counts {done,total:15}`, `timeConsumedMs`, `estimatedTotalMs`, `estimatedRemainingMs`, `eta`, `viewUrl`, `blockers`, and `stages[]` (the dashboard view: `key,label,status,startedAt,endedAt,durationMs,iterations,verdict`).
+
+Keep `progress.json` small and valid JSON — the dashboard fetches it every 60s and the browser hard-refreshes every 5 minutes. Never block a handoff on the dashboard; if anything is uncertain, still write your best current snapshot.
+
 ## Required workflow
 
 ### 1. On intake (first invocation or new project)
 
 Create or reset the store:
 
-1. Write `project-context.md` from the frontend analysis and user requirements.
-2. Initialize `state.json` with `phase: "intake"`, counters at 0, empty blockers.
+1. Write `project-context.md` from the frontend analysis and user requirements — including the **Deployment & domain** section (domain + Certbot email passed by Sunny; mark as open questions if absent).
+2. Initialize `state.json` with `phase: "intake"`, the `project` block (name/domain/acmeEmail), `workflowStartedAt = now`, counters at 0, empty blockers, and `stages[]` seeded from the dashboard stage map.
 3. Create empty placeholder files for phase reports if they do not exist.
+4. Seed the dashboard: create `.sunny/web/`, copy `agentprogress.html` + `docker-compose.yml` + `nginx-progress.conf` from `.cursor/dashboard/`, and write the first `progress.json`. (Sunny starts the publisher; you only create the files.)
 
 ### 2. On agent output capture (every invocation)
 
@@ -208,9 +271,10 @@ You will receive:
 
 1. Read current `state.json` and all relevant context files.
 2. Summarize the agent output into the appropriate file (see templates below).
-3. Update `state.json`: phase, `lastVerdict`, increment counters, append to `completedAgents`, set `updatedAt`.
+3. Update `state.json`: phase, `lastVerdict`, increment counters, append to `completedAgents`, update `stages[]` (status/timing/iterations), set `updatedAt`.
 4. If the source agent emitted a verdict line, record it exactly in `lastVerdict`.
-5. Return a **handoff package** for the next agent (see Output expectations).
+5. Rewrite `.sunny/web/progress.json` from the updated state (see "Progress dashboard" above).
+6. Return a **handoff package** for the next agent (see Output expectations).
 
 ### 3. On context retrieval (when Sunny asks for context only)
 
@@ -224,8 +288,15 @@ Read the requested files and return a trimmed summary for the specified `targetA
 # Project Context
 
 **Updated:** {ISO-8601}
+**Project name:** {name}
 **Frontend path:** {path}
 **Backend path:** {path}
+
+## Deployment & domain
+- **Domain:** {domain} — single host: `https://{domain}/` serves the frontend, `https://{domain}/api` proxies the JHipster gateway (set by Naveen at the Nginx stage).
+- **Certbot/ACME email:** {acmeEmail} — for Let's Encrypt issuance + renewal.
+- **Progress dashboard:** early `http://{server-ip}:8787/agentprogress.html` (publisher), then `https://{domain}/agentprogress.html` once Nginx is up.
+- **Notes:** captured at intake. If domain/email are missing, flag as an open question — they are required before the Nginx & SSL stage.
 
 ## Domain model
 - Entities, fields, relationships, enums
@@ -736,10 +807,10 @@ Append each remediation cycle:
 
 Every response must include:
 
-1. **Files updated** — list of `.sunny/context/*` files written or modified.
-2. **State snapshot** — current `phase`, iteration counters, `lastVerdict`.
+1. **Files updated** — list of `.sunny/context/*` and `.sunny/web/*` files written or modified (always include `.sunny/web/progress.json`).
+2. **State snapshot** — current `phase`, iteration counters, `lastVerdict`, and dashboard summary (`done/total` stages, ETA).
 3. **Handoff package** — a single markdown block titled `## Context for {targetAgent}` containing only what the next agent needs. Keep under 150 lines.
 
-If any loop counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backendUnitTestVerifyIterations` / `backendIntegrationTestVerifyIterations` / `backendFunctionalTestVerifyIterations` / `frontendUnitTestVerifyIterations` / `frontendIntegrationTestVerifyIterations` / `frontendFunctionalTestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; or `productionVerifyIterations`) reaches `maxIterations` and that loop's verdict is not satisfied, set `phase: "blocked"`, populate `blockers`, and tell Sunny to stop the loop and escalate to the user.
+If any loop counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backendUnitTestVerifyIterations` / `backendIntegrationTestVerifyIterations` / `backendFunctionalTestVerifyIterations` / `frontendUnitTestVerifyIterations` / `frontendIntegrationTestVerifyIterations` / `frontendFunctionalTestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; or `productionVerifyIterations`) reaches `maxIterations` and that loop's verdict is not satisfied, set `phase: "blocked"`, populate `blockers`, mark the current dashboard stage `blocked` and rewrite `progress.json` (`status: "blocked"` + blockers), and tell Sunny to stop the loop and escalate to the user.
 
 Be precise. You are the memory that makes long-running multi-agent workflows possible.

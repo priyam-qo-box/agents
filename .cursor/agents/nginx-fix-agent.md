@@ -31,12 +31,13 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ## Required workflow
 
-1. **Triage** findings: group by category (routing / tls-certbot / security-ops).
+1. **Triage** findings: group by category (routing / tls-certbot / security-ops / dashboard).
 2. **For each finding `N00N`:**
    - Locate the cited config/compose/cert path.
    - Apply the fix: routing, redirects, ACME webroot, cert issuance, renewal cron, security headers, compose volumes.
+   - For **dashboard** findings: ensure `https://<domain>/agentprogress.html` and `/progress.json` (no-store) are served from the read-only `./.sunny/web` mount, and the early publisher (port 8787) is stopped (`docker compose -f .sunny/web/docker-compose.yml down`).
    - Re-run `nginx -t` and `certbot renew --dry-run` where applicable.
-3. **Validate** before handoff: `nginx -t` passes; HTTP→HTTPS redirect works; renewal dry-run succeeds.
+3. **Validate** before handoff: `nginx -t` passes; HTTP→HTTPS redirect works; renewal dry-run succeeds; dashboard serves on the domain.
 4. **Update the graph**: run `graphify update <project-root>`.
 
 ## Do not
@@ -61,6 +62,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - `nginx -t`: pass/fail
 - HTTP redirects to HTTPS: pass/fail
 - `certbot renew --dry-run`: pass/fail
+- `https://<domain>/agentprogress.html` 200 + `/progress.json` no-store; early publisher stopped: pass/fail
 
 ### Remaining concerns
 - {anything not fully closed and why}

@@ -19,7 +19,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 1. Read `.sunny/context/backend-summary.md`, `.sunny/context/database-summary.md`, `.sunny/context/architecture-summary.md`, `.sunny/context/project-context.md`, and `.sunny/context/state.json`.
 2. If re-running after a verify cycle, read `.sunny/context/nginx-verify-report.md` for the gaps to close.
-3. Determine the **domain(s)** and routing intent from `project-context.md` (e.g. `app.example.com` → frontend, `api.example.com` or `/api` → gateway). If the domain is not specified, parameterize it via an env/`.env` variable (e.g. `DOMAIN`, `ACME_EMAIL`) and document the assumption — never hardcode a placeholder as if it were real.
+3. Read the **domain** and **Certbot email** from the **Deployment & domain** section of `project-context.md` (also in `state.json.project.domain` / `acmeEmail`) — these are **provided by the user at intake** and are the source of truth. Default routing is a **single host**: `https://<domain>/` → frontend, `https://<domain>/api` → gateway. Keep the domain/email as env/`.env` values (`DOMAIN`, `ACME_EMAIL`) referencing the intake inputs; never invent a placeholder domain. If they are genuinely absent, stop and ask via the Context Agent — do not guess.
 4. Inspect the real backend: the JHipster **gateway** host/port/context-path, the frontend build/host/port, and the existing `docker-compose*.yml`.
 5. Do **not** write to `.sunny/context/` — return structured output for the Context Agent.
 
@@ -52,14 +52,26 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - Dockerized Nginx service wired into `docker-compose` with the gateway/frontend, volumes for certs and ACME webroot.
 - Health/`/healthz` passthrough and access/error logging.
 
+### Progress dashboard (takeover from the early publisher)
+
+The Sunny pipeline shows a live progress dashboard. During earlier stages it is served by a temporary publisher on `http://<server-ip>:8787`. You make it permanent on the domain over HTTPS:
+
+- Mount `./.sunny/web` **read-only** into the Nginx container and serve:
+  - `location = /agentprogress.html` → `agentprogress.html`
+  - `location = /progress.json` → `progress.json` with `Cache-Control: no-store` (and `expires -1`) so it is never cached.
+- Result: `https://<domain>/agentprogress.html` works alongside the frontend/API on the same host.
+- **Retire the early publisher** so its port (8787) and port 80 are free for Certbot/Nginx: `docker compose -f .sunny/web/docker-compose.yml down` (or stop the `python -m http.server` fallback). Sunny coordinates the stop; ensure your config does not conflict with it.
+- The page is **public by default** (per project requirement). If the operator wants it private, document an optional Basic-Auth (`auth_basic` + `htpasswd`) on the two locations — do not enable it unless asked.
+
 ## Required workflow
 
 1. **Map** upstreams (frontend, gateway) — host, port, context path — from the graph and config.
 2. **Author** the Nginx config (server blocks, upstreams, proxy + WebSocket + headers, gzip, redirects).
 3. **Wire TLS**: ACME challenge location + Certbot issuance + renewal automation + HSTS/redirect.
-4. **Compose**: add the Nginx (and certbot) services, networks, and cert/webroot volumes; keep the gateway off the public interface.
-5. **Validate**: `nginx -t` passes; `certbot renew --dry-run` succeeds (or documented staging run); domain serves frontend and proxies API over HTTPS with HTTP redirecting.
-6. **Update the graph**: run `graphify update <project-root>` so downstream agents see the edge config.
+4. **Compose**: add the Nginx (and certbot) services, networks, and cert/webroot volumes; keep the gateway off the public interface; mount `./.sunny/web` read-only and serve `/agentprogress.html` + `/progress.json` (no-store).
+5. **Cutover the dashboard**: ensure `https://<domain>/agentprogress.html` serves, then stop the early publisher (`docker compose -f .sunny/web/docker-compose.yml down`) so ports are free.
+6. **Validate**: `nginx -t` passes; `certbot renew --dry-run` succeeds (or documented staging run); domain serves frontend, proxies API over HTTPS with HTTP redirecting, and serves the dashboard.
+7. **Update the graph**: run `graphify update <project-root>` so downstream agents see the edge config.
 
 ## Output for Context Agent
 
@@ -79,6 +91,10 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - Proxy + WebSocket headers; security headers set
 - Compose services/volumes/networks added; gateway not publicly exposed
 
+### Progress dashboard
+- Served at `https://{domain}/agentprogress.html` (+ `/progress.json` no-store), `.sunny/web` mounted read-only
+- Early publisher stopped: yes/no
+
 ### Changes made
 | File | What was done |
 |------|---------------|
@@ -87,6 +103,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 - `nginx -t`: pass/fail
 - HTTPS serves frontend + proxies API: pass/fail
 - HTTP redirects to HTTPS: pass/fail
+- `https://{domain}/agentprogress.html` returns 200; `progress.json` reachable + no-store: pass/fail
 
 ### Assumptions / open questions
 - {e.g. domain/email provided via env; DNS records expected}

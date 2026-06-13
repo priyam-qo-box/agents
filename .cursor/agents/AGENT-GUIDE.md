@@ -47,9 +47,20 @@ graphify install
 - **Reads:** user request + `state.json` (loop status). **Produces:** orchestration plan, phase announcements, the final summary to the user.
 
 ### Maya — Context Agent (`context-agent`) · not readonly
-- The system's shared memory and the **only** agent allowed to write to `.sunny/context/`. Every other agent hands its output to Maya for persistence.
-- Summarizes each agent's output into structured reports, updates `state.json` (phase, counters, `lastVerdict`), and builds the trimmed handoff for the next agent.
-- **Reads:** the previous agent's raw output + current store. **Produces:** all `.sunny/context/*.md` reports + `state.json`.
+- The system's shared memory and the **only** agent allowed to write to `.sunny/context/` and `.sunny/web/`. Every other agent hands its output to Maya for persistence.
+- Summarizes each agent's output into structured reports, updates `state.json` (phase, counters, `lastVerdict`, `project` domain/email, `workflowStartedAt`, per-stage timing), and builds the trimmed handoff for the next agent.
+- **Owns the live progress dashboard:** at intake she seeds `.sunny/web/` (dashboard + early publisher), and after **every** handoff she rewrites `.sunny/web/progress.json` (completed/pending stages, current phase, time consumed/estimated/remaining, ETA).
+- **Reads:** the previous agent's raw output + current store. **Produces:** all `.sunny/context/*.md` reports + `state.json` + `.sunny/web/progress.json`.
+
+---
+
+## Inputs you give at kickoff & the live dashboard
+
+- **Domain + Certbot email (at intake):** provide a single **domain** (`https://<domain>/` → frontend, `https://<domain>/api` → gateway) and a **Certbot/ACME email**. Sunny captures them at intake; Naveen uses them at the Nginx stage. If omitted, Sunny asks before the Nginx stage.
+- **Live progress dashboard (from agent #1):** completed/pending stages, current phase, time consumed, estimated total, time remaining — auto-refreshing every 5 minutes.
+  - Early (intake → before Nginx): `http://<server-ip>:8787/agentprogress.html` (tiny static publisher).
+  - From the Nginx stage on: `https://<domain>/agentprogress.html` over HTTPS (publisher retired).
+  - It is a read-only artifact in `.sunny/web/`; it never modifies the generated backend.
 
 ---
 
@@ -106,6 +117,7 @@ graphify install
 
 ### Naveen — Nginx & SSL Edge Agent (`nginx-agent`) · not readonly
 - Runs after the database is approved and **before** testing. Configures **Nginx** as the reverse proxy so the **frontend and gateway are reachable on the domain over HTTPS**, with **Certbot/Let's Encrypt** certificates and automatic renewal. No self-signed shortcuts in production.
+- Uses the **intake-provided** domain + Certbot email (never a placeholder). Also **publishes the progress dashboard** on the domain (`https://<domain>/agentprogress.html` + `/progress.json`, from a read-only `.sunny/web` mount) and **retires the early publisher** so its port is free for Certbot.
 - **Reads:** `backend-summary.md`, `database-summary.md`, `architecture-summary.md`, `project-context.md` (domain/routing). **Produces:** Nginx config, compose wiring, Certbot automation + `nginx-summary.md`.
 
 ### Naveen Verify — Nginx Verify Agent (`nginx-verify-agent`) · readonly

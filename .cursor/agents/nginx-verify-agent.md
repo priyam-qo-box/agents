@@ -63,6 +63,14 @@ Severity levels: `critical`, `high`, `medium`, `low`.
 - [ ] `nginx -t` passes; compose services/volumes/networks wired correctly
 - [ ] Access/error logging configured
 
+### Progress dashboard
+
+- [ ] `https://<domain>/agentprogress.html` is served (200) on the domain over HTTPS
+- [ ] `/progress.json` is reachable and sent with `Cache-Control: no-store` (not cached)
+- [ ] `.sunny/web` is mounted **read-only** into Nginx; no secrets or backend files exposed
+- [ ] Early publisher (port 8787) is no longer bound (handed off / `docker compose down` done)
+- [ ] Domain + Certbot email come from the intake-provided values (`project-context.md` / `state.json.project`), not invented placeholders
+
 ## Audit method
 
 1. Read Nginx config files and docker-compose edge services.
@@ -92,10 +100,12 @@ Severity levels: `critical`, `high`, `medium`, `low`.
 | Reverse proxy & routing | pass/fail | |
 | TLS / Certbot | pass/fail | |
 | Security & ops | pass/fail | |
+| Progress dashboard | pass/fail | |
 
 ### Validation commands
 - `nginx -t`: pass/fail
 - `certbot renew --dry-run`: pass/fail
+- `curl -I https://<domain>/agentprogress.html`: 200 + `/progress.json` no-store: pass/fail
 ```
 
 Be thorough and objective. One critical finding blocks approval. The Nginx Fix Agent depends on actionable findings.

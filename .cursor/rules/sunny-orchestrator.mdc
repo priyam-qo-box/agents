@@ -23,6 +23,15 @@ Graphify is **pre-installed by the operator** (`uv tool install graphifyy` → `
 - **After every code-changing agent** (generate/fix — not readonly verify), confirm `graphify update <project-root>` ran before launching context-agent. Run it yourself if the agent omitted it.
 - On intake, if `graphify-out/` is missing, note that the operator may run an initial `graphify .`; thereafter only **`graphify update`** between stages.
 
+## Live progress dashboard
+
+A web dashboard shows run progress (completed/pending stages, current phase, time consumed/estimated/remaining, ETA) and is visible from the **first** agent.
+
+- **Maya owns the data:** she seeds `.sunny/web/` at intake and rewrites `.sunny/web/progress.json` on every capture. Files are read-only static artifacts — they never touch the generated backend.
+- **Early publisher (intake → Stage 4):** Sunny starts a tiny `nginx:alpine` static server (Phase 0) → `http://<server-ip>:8787/agentprogress.html`.
+- **Domain (Stage 5 → done):** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS and Sunny stops the early publisher.
+- The page hard-refreshes every 5 minutes and polls `progress.json` every 60s.
+
 ## Agent registry
 
 | Agent | subagent_type / file | readonly |
@@ -166,8 +175,15 @@ Frontend Input → Sunny
 ## Phase 0 — Intake
 
 1. Analyze the frontend: API calls, models, auth, routes, requirements.
-2. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, and derived domain model.
-3. Confirm `.sunny/context/project-context.md` and `state.json` exist before proceeding.
+2. **Capture deployment inputs** the user gives at kickoff: the **domain** (single host — `https://<domain>/` frontend, `https://<domain>/api` gateway) and a **Certbot/ACME email**. If either is missing, ask the user once now; they are **required before the Nginx stage (Phase 2.6)** but intake can proceed without them. Pass `project.name`, `domain`, `acmeEmail` to context-agent.
+3. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, derived domain model, and the deployment inputs. Maya writes `project-context.md` (Deployment & domain section), initializes `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), and seeds the dashboard bundle in `.sunny/web/`.
+4. Confirm `.sunny/context/project-context.md`, `state.json`, and `.sunny/web/progress.json` exist before proceeding.
+5. **Start the early progress publisher** so the run is web-visible from agent #1:
+   ```bash
+   docker compose -f .sunny/web/docker-compose.yml up -d   # or: PROGRESS_PORT=9090 docker compose -f .sunny/web/docker-compose.yml up -d
+   # no-Docker fallback: python -m http.server 8787 --directory .sunny/web
+   ```
+   Tell the user the URL: `http://<server-ip>:8787/agentprogress.html` (open port 8787; plain HTTP until Naveen issues the cert). It auto-refreshes every 5 min and shows completed/pending stages, current phase, time consumed, estimated total, and time remaining. Naveen later serves the same page at `https://<domain>/agentprogress.html`.
 
 ## Phase 0.5 — Architecture loop
 
@@ -230,6 +246,13 @@ repeat:
 ## Phase 2.6 — Nginx & SSL edge loop
 
 Runs **after** the database is approved and **before** testing. Configures **Nginx** as the reverse proxy connecting the **frontend and gateway to the domain**, terminates TLS, and obtains/renews **Let's Encrypt** certificates via **Certbot**. Real domain + HTTPS only — no self-signed shortcuts in production.
+
+**Prerequisite:** `domain` + `acmeEmail` must be set in `project-context.md`/`state.json`. If they are still missing, ask the user before launching nginx-agent.
+
+**Dashboard cutover:** Naveen also serves the progress dashboard at `https://<domain>/agentprogress.html` (from the read-only `.sunny/web` mount) and Sunny **stops the early publisher** so its port is free for Certbot/Nginx:
+```bash
+docker compose -f .sunny/web/docker-compose.yml down   # (or stop the python fallback)
+```
 
 **Exit phrase (must match exactly):** `Nginx and SSL approved.`
 
