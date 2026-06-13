@@ -2,7 +2,7 @@
 
 A collection of **Cursor AI agents** that turn a frontend application into a complete, enterprise-grade **JHipster microservices** backend — fully generated, verified, tested to 95%+ coverage, and audited for production readiness.
 
-At the center is **Sunny**, an orchestrator that coordinates specialized agents through continuous verify → fix and test → verify loops until every quality gate passes. A standalone **documentation** agent (Swagger + Postman + Javadoc) is also included.
+At the center is **Sunny**, an orchestrator that coordinates specialized agents through continuous verify → fix and test → verify loops until every quality gate passes. Agents use **Graphify** (`graphify update`) for token-efficient codebase context. A standalone **documentation** agent (Swagger + Postman + Javadoc) is also included.
 
 ---
 
@@ -13,7 +13,8 @@ This repository contains **agent definitions and orchestration rules** for Curso
 ```
 .cursor/
 ├── rules/
-│   └── sunny-orchestrator.mdc      # Executable playbook the orchestrator follows
+│   ├── sunny-orchestrator.mdc      # Executable playbook the orchestrator follows
+│   └── graphify.mdc                # Query-first context via graphify-out/ (token savings)
 └── agents/
     ├── README.md                          # Deep dive on how the Sunny system works
     ├── ARCHITECTURE.md                    # All architecture + workflow diagrams
@@ -28,6 +29,9 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── database-agent.md                  # Hardens DB connections, schema, migrations
     ├── database-verify-agent.md           # Audits the database layer (readonly)
     ├── database-fix-agent.md              # Fixes database review findings
+    ├── nginx-agent.md                     # Nginx reverse proxy + domain + Certbot SSL
+    ├── nginx-verify-agent.md              # Audits edge proxy & TLS (readonly)
+    ├── nginx-fix-agent.md                 # Fixes nginx/SSL findings
     ├── backend-unit-test-agent.md                  # Backend unit tests
     ├── backend-unit-test-verify-agent.md           # Verifies backend unit tests (readonly)
     ├── backend-unit-test-fix-agent.md              # Closes backend unit-layer gaps
@@ -80,6 +84,9 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | **Database Agent** | Hardens DB connections, schema, migrations, standards | No |
 | **Database Verify Agent** | Audits DB layer (schema, migrations, no mock data) | Yes |
 | **Database Fix Agent** | Fixes database review findings | No |
+| **Nginx & SSL Edge Agent** | Reverse proxy: connects frontend + gateway to domain; Certbot/Let's Encrypt | No |
+| **Nginx Verify Agent** | Audits Nginx routing, HTTPS, certificate renewal | Yes |
+| **Nginx Fix Agent** | Fixes nginx/SSL findings | No |
 | **Backend Unit Test Agent** | Isolated unit tests (services, mappers, validators) | No |
 | **Backend Unit Test Verify Agent** | Verifies backend unit-layer coverage/quality | Yes |
 | **Backend Unit Test Fix Agent** | Closes backend unit-layer gaps | No |
@@ -126,6 +133,7 @@ Every agent has a human codename. A family shares a base name; its verify/fix va
 | Arjun (architecture) | Arjun | Arjun Verify | Arjun Fix |
 | Vikram (backend build) | Vikram | Vikram Verify | Vikram Fix |
 | Dhruv (database) | Dhruv | Dhruv Verify | Dhruv Fix |
+| Naveen (nginx & SSL) | Naveen | Naveen Verify | Naveen Fix |
 | Rohan (backend unit tests) | Rohan | Rohan Verify | Rohan Fix |
 | Karan (backend integration tests) | Karan | Karan Verify | Karan Fix |
 | Aditya (backend functional tests) | Aditya | Aditya Verify | Aditya Fix |
@@ -154,7 +162,9 @@ flowchart LR
     VL -->|issues| FIX[Fix] --> VL
     VL -->|"Backend approved"| DL{Database loop}
     DL -->|issues| DFIX[Fix] --> DL
-    DL -->|"Database approved"| BTL{"Backend test loops<br/>unit -> integration -> functional"}
+    DL -->|"Database approved"| NL{Nginx & SSL loop}
+    NL -->|issues| NFIX[Fix] --> NL
+    NL -->|"Nginx and SSL approved"| BTL{"Backend test loops<br/>unit -> integration -> functional"}
     BTL -->|"layer not satisfied"| BFIX[Fix that layer] --> BTL
     BTL -->|"all 3 backend layers satisfied"| FTL{"Frontend test loops<br/>unit -> integration -> functional"}
     FTL -->|"layer not satisfied"| FFIX[Fix that layer] --> FTL
@@ -167,13 +177,14 @@ flowchart LR
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**; the system integration stage then exercises the **whole stack together** (real frontend + gateway + microservices + PostgreSQL); then five documentation/API stages run in order (Swagger first, since its spec feeds the API collection and API tests); finally the production agent audits every prior stage and produces a comprehensive report. Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
+The pipeline runs **architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**; the system integration stage then exercises the **whole stack together** (real frontend + gateway + microservices + PostgreSQL); then five documentation/API stages run in order (Swagger first, since its spec feeds the API collection and API tests); finally the production agent audits every prior stage and produces a comprehensive report. Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|
 | Architecture | `Architecture approved.` |
 | Backend verification | `No issues found. Backend approved.` |
 | Database | `Database approved.` |
+| Nginx & SSL | `Nginx and SSL approved.` |
 | Backend unit testing | `Backend unit testing requirements satisfied.` |
 | Backend integration testing | `Backend integration testing requirements satisfied.` |
 | Backend functional testing | `Backend functional testing requirements satisfied.` |
@@ -191,6 +202,17 @@ The pipeline runs **architecture → backend (JHipster) → database → backend
 > Full diagrams (component architecture, sequence, loops, data flow, state machine) are in [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md).
 
 ---
+
+## Graphify (token-efficient context)
+
+Operators pre-install Graphify before running Sunny:
+
+```bash
+uv tool install graphifyy
+graphify install
+```
+
+Agents **query** `graphify-out/` first (`graphify query`, `path`, `explain`) instead of reading entire trees. After code changes they run **`graphify update <project-root>`** so the next agent gets a current graph. See [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc).
 
 ## Non-negotiable standards
 
@@ -215,7 +237,7 @@ In a Cursor chat, invoke Sunny and point it at your frontend:
 
 > Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
 
-Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Run the documentation agent (standalone)
 
@@ -229,4 +251,5 @@ Sunny will analyze the frontend, design the architecture, generate the backend, 
 - [`.cursor/agents/README.md`](.cursor/agents/README.md) — how the Sunny system works, phase by phase.
 - [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md) — architecture and workflow diagrams.
 - [`.cursor/rules/sunny-orchestrator.mdc`](.cursor/rules/sunny-orchestrator.mdc) — the orchestration playbook.
+- [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc) — Graphify query-first context (token savings).
 - Individual agent definitions under [`.cursor/agents/`](.cursor/agents/).

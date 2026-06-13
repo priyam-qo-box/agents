@@ -14,15 +14,28 @@ A complete, presentation-ready reference for **every agent** in the Sunny multi-
 - **Exit phrase** — the exact string a verify agent emits when its loop is satisfied. The orchestrator matches it literally to advance.
 - **Loop** — generate → verify → fix → re-verify, capped at **5 iterations** per loop before Sunny escalates.
 
-**System totals:** 49 orchestrated agents + 1 standalone (`documentation`) · 16 verify/fix loops · 16 readonly auditors.
+**System totals:** 52 orchestrated agents + 1 standalone (`documentation`) · 17 verify/fix loops · 17 readonly auditors.
 
 **Pipeline order:**
 
 ```
-Architecture → Backend (JHipster) → Database → Backend tests → Frontend tests
-→ System integration tests → Swagger → Javadoc → API collection → API tests
-→ API performance → Production
+Architecture → Backend (JHipster) → Database → Nginx & SSL (domain + Certbot)
+→ Backend tests → Frontend tests → System integration tests → Swagger → Javadoc
+→ API collection → API tests → API performance → Production
 ```
+
+## Graphify (token-efficient context)
+
+Operators pre-install Graphify before Sunny runs:
+
+```bash
+uv tool install graphifyy
+graphify install
+```
+
+- **Query first:** `graphify query "<question>"`, `graphify path "<A>" "<B>"`, `graphify explain "<symbol>"` on `graphify-out/` before grepping or reading large trees.
+- **Update after changes:** code-changing agents run `graphify update <project-root>` after edits (readonly agents query only).
+- See [`../rules/graphify.mdc`](../rules/graphify.mdc).
 
 ---
 
@@ -89,7 +102,23 @@ Architecture → Backend (JHipster) → Database → Backend tests → Frontend 
 
 ---
 
-## Stage 5 — Backend testing (three layers)
+## Stage 5 — Nginx & SSL edge (codename family: **Naveen**)
+
+### Naveen — Nginx & SSL Edge Agent (`nginx-agent`) · not readonly
+- Runs after the database is approved and **before** testing. Configures **Nginx** as the reverse proxy so the **frontend and gateway are reachable on the domain over HTTPS**, with **Certbot/Let's Encrypt** certificates and automatic renewal. No self-signed shortcuts in production.
+- **Reads:** `backend-summary.md`, `database-summary.md`, `architecture-summary.md`, `project-context.md` (domain/routing). **Produces:** Nginx config, compose wiring, Certbot automation + `nginx-summary.md`.
+
+### Naveen Verify — Nginx Verify Agent (`nginx-verify-agent`) · readonly
+- Audits reverse-proxy routing, TLS termination, HTTP→HTTPS redirect, Certbot issuance/renewal, and security headers.
+- **Reads:** `nginx-summary.md`, `backend-summary.md`, `project-context.md`. **Exit phrase:** `Nginx and SSL approved.`
+
+### Naveen Fix — Nginx Fix Agent (`nginx-fix-agent`) · not readonly
+- Fixes every nginx/SSL finding (routing, certs, renewal, headers, compose), then returns for re-audit.
+- **Reads:** `nginx-verify-report.md`. **Produces:** fixes + `nginx-fix-log.md`.
+
+---
+
+## Stage 6 — Backend testing (three layers)
 
 Generate all three layers once, then verify/fix each layer in order: **unit → integration → functional**. Target **≥95% line and branch coverage** per layer.
 
@@ -110,7 +139,7 @@ Generate all three layers once, then verify/fix each layer in order: **unit → 
 
 ---
 
-## Stage 6 — Frontend testing (three layers)
+## Stage 7 — Frontend testing (three layers)
 
 Same per-layer structure for the frontend: generate once, then **unit → integration/component → functional/E2E**. Target **≥95% line and branch coverage** per layer.
 
@@ -131,11 +160,11 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 7 — System integration testing (codename family: **Sanjay**)
+## Stage 8 — System integration testing (codename family: **Sanjay**)
 
 ### Sanjay — System Integration Test Agent (`system-integration-test-agent`) · not readonly
 - Tests the **whole system together** — the real frontend driving the real gateway + microservices, persisting to a real PostgreSQL database. Validates cross-tier journeys, auth propagation through the gateway, and end-to-end persistence.
-- **Reads:** `project-context.md` (critical journeys), `architecture-summary.md`, `backend-summary.md`, `database-summary.md`. **Produces:** `system-integration-test-report.md`.
+- **Reads:** `project-context.md` (critical journeys), `architecture-summary.md`, `backend-summary.md`, `database-summary.md`, `nginx-summary.md`. **Produces:** `system-integration-test-report.md`.
 
 ### Sanjay Verify — System Integration Test Verify Agent (`system-integration-test-verify-agent`) · readonly
 - Re-runs the full-stack suite on the real running stack; confirms every critical journey asserts UI + API + DB persistence (no mocked backend, no H2). **Exit:** `System integration testing requirements satisfied.`
@@ -145,7 +174,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 8 — Swagger / OpenAPI (codename family: **Surya**)
+## Stage 9 — Swagger / OpenAPI (codename family: **Surya**)
 
 ### Surya — Swagger Agent (`swagger-agent`) · not readonly
 - Makes every REST endpoint discoverable and accurate via **springdoc-openapi** annotations + a JWT security scheme, and exports the `openapi.json`/`.yaml` spec per service. The spec feeds the API collection and API tests.
@@ -159,7 +188,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 9 — Javadoc (codename family: **Jaya**)
+## Stage 10 — Javadoc (codename family: **Jaya**)
 
 ### Jaya — Javadoc Agent (`javadoc-agent`) · not readonly
 - Documents every public Java API (controllers, services, DTOs/entities, exceptions, config) for **intent and behavior**, adds `package-info.java`, and configures a Javadoc build that passes with `failOnWarnings`.
@@ -173,7 +202,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 10 — API collection / Postman (codename family: **Chetan**)
+## Stage 11 — API collection / Postman (codename family: **Chetan**)
 
 ### Chetan — API Collection Agent (`api-collection-agent`) · not readonly
 - Builds a runnable **Postman collection + environments** generated from the OpenAPI spec (so it never drifts): a request per endpoint, automated login → token, collection-level bearer auth, test scripts, variable chaining, and Newman CI.
@@ -187,7 +216,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 11 — API tests / status (codename family: **Tara**)
+## Stage 12 — API tests / status (codename family: **Tara**)
 
 ### Tara — API Test Agent (`api-test-agent`) · not readonly
 - Calls **every endpoint** on the real running stack (through the gateway) and asserts each returns its **correct HTTP status**: `200/201/204` on success, and the appropriate `400/401/403/404/409` for negative cases. Covers auth and role-protected access.
@@ -201,7 +230,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 12 — API performance (codename family: **Pawan**)
+## Stage 13 — API performance (codename family: **Pawan**)
 
 ### Pawan — API Performance Test Agent (`api-performance-test-agent`) · not readonly
 - Load-tests every key endpoint at **1, 10, 20, and 30 concurrent requests** against the real stack (k6/JMeter/Gatling/autocannon), capturing p50/p95/p99 latency, throughput, and error rate per level, and asserting thresholds.
@@ -215,7 +244,7 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
-## Stage 13 — Production (codename family: **Prakash**)
+## Stage 14 — Production (codename family: **Prakash**)
 
 ### Prakash — Production Standards Agent (`production-standards-agent`) · readonly
 - The final gate. **First** runs a completeness audit of every prior stage (a do's-and-don'ts check that each stage emitted its exact verdict and its artifacts exist on disk). **Then** audits security, production readiness, industry standards, performance, and data integrity. **Finally** produces one **comprehensive final report** that consolidates every prior report — including all test coverage, documentation, and API/performance results.
@@ -248,6 +277,9 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 | Dhruv | `database-agent` | No | — |
 | Dhruv Verify | `database-verify-agent` | Yes | `Database approved.` |
 | Dhruv Fix | `database-fix-agent` | No | — |
+| Naveen | `nginx-agent` | No | — |
+| Naveen Verify | `nginx-verify-agent` | Yes | `Nginx and SSL approved.` |
+| Naveen Fix | `nginx-fix-agent` | No | — |
 | Rohan | `backend-unit-test-agent` | No | — |
 | Rohan Verify | `backend-unit-test-verify-agent` | Yes | `Backend unit testing requirements satisfied.` |
 | Rohan Fix | `backend-unit-test-fix-agent` | No | — |

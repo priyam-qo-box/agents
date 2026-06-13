@@ -15,6 +15,14 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 - Backend and frontend test coverage **>= 95%** line and branch.
 - Run verification loops until exact exit phrases are emitted.
 
+## Graphify (token-efficient context)
+
+Graphify is **pre-installed by the operator** (`uv tool install graphifyy` → `graphify install`). See `.cursor/rules/graphify.mdc`.
+
+- **Every Task prompt** should tell agents to use `graphify query` / `path` / `explain` on `graphify-out/` before grepping or reading large file trees.
+- **After every code-changing agent** (generate/fix — not readonly verify), confirm `graphify update <project-root>` ran before launching context-agent. Run it yourself if the agent omitted it.
+- On intake, if `graphify-out/` is missing, note that the operator may run an initial `graphify .`; thereafter only **`graphify update`** between stages.
+
 ## Agent registry
 
 | Agent | subagent_type / file | readonly |
@@ -29,6 +37,9 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | Database Agent | `database-agent` | false |
 | Database Verify Agent | `database-verify-agent` | true |
 | Database Fix Agent | `database-fix-agent` | false |
+| Nginx & SSL Edge Agent | `nginx-agent` | false |
+| Nginx Verify Agent | `nginx-verify-agent` | true |
+| Nginx Fix Agent | `nginx-fix-agent` | false |
 | Backend Unit Test Agent | `backend-unit-test-agent` | false |
 | Backend Unit Test Verify Agent | `backend-unit-test-verify-agent` | true |
 | Backend Unit Test Fix Agent | `backend-unit-test-fix-agent` | false |
@@ -77,6 +88,7 @@ Each agent has a human codename (a family base name + `Verify`/`Fix`). Refer to 
 | Arjun (architecture) | Arjun — `architecture-agent` | Arjun Verify — `architecture-verify-agent` | Arjun Fix — `architecture-fix-agent` |
 | Vikram (backend build) | Vikram — `jhipster-backend-agent` | Vikram Verify — `jhipster-verify-agent` | Vikram Fix — `issue-resolution-agent` |
 | Dhruv (database) | Dhruv — `database-agent` | Dhruv Verify — `database-verify-agent` | Dhruv Fix — `database-fix-agent` |
+| Naveen (nginx & SSL) | Naveen — `nginx-agent` | Naveen Verify — `nginx-verify-agent` | Naveen Fix — `nginx-fix-agent` |
 | Rohan (backend unit) | Rohan — `backend-unit-test-agent` | Rohan Verify — `backend-unit-test-verify-agent` | Rohan Fix — `backend-unit-test-fix-agent` |
 | Karan (backend integration) | Karan — `backend-integration-test-agent` | Karan Verify — `backend-integration-test-verify-agent` | Karan Fix — `backend-integration-test-fix-agent` |
 | Aditya (backend functional) | Aditya — `backend-functional-test-agent` | Aditya Verify — `backend-functional-test-verify-agent` | Aditya Fix — `backend-functional-test-fix-agent` |
@@ -108,6 +120,9 @@ Frontend Input → Sunny
   → Database:
       database-agent → context-agent → database-verify-agent
       → [loop if not approved] database-fix-agent → context-agent → database-verify-agent
+  → Nginx & SSL edge (domain, reverse proxy, Certbot/Let's Encrypt):
+      nginx-agent → context-agent → nginx-verify-agent
+      → [loop if not approved] nginx-fix-agent → context-agent → nginx-verify-agent
   → Backend testing (generate all 3 layers, then verify/fix each layer in order):
       backend-unit-test-agent → backend-integration-test-agent → backend-functional-test-agent → context-agent
       Unit:        backend-unit-test-verify-agent
@@ -205,10 +220,29 @@ Hardens and audits the database layer (connections, schema, Liquibase migrations
 repeat:
   3. Launch database-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist database-verify-report.md
-  5. Read state.json — if lastVerdict == exit phrase → break to Phase 3A
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 2.6
   6. If databaseVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
   7. Launch database-fix-agent with the verify findings
   8. Launch context-agent to append database-fix-log.md
+  9. goto repeat
+```
+
+## Phase 2.6 — Nginx & SSL edge loop
+
+Runs **after** the database is approved and **before** testing. Configures **Nginx** as the reverse proxy connecting the **frontend and gateway to the domain**, terminates TLS, and obtains/renews **Let's Encrypt** certificates via **Certbot**. Real domain + HTTPS only — no self-signed shortcuts in production.
+
+**Exit phrase (must match exactly):** `Nginx and SSL approved.`
+
+```
+1. Launch nginx-agent with handoff (backend-summary.md, database-summary.md, architecture-summary.md, project-context.md domain/routing)
+2. Launch context-agent to persist nginx-summary.md
+repeat:
+  3. Launch nginx-verify-agent (readonly) with context handoff
+  4. Launch context-agent to persist nginx-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 3A
+  6. If nginxVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  7. Launch nginx-fix-agent with the verify findings
+  8. Launch context-agent to append nginx-fix-log.md
   9. goto repeat
 ```
 
@@ -281,7 +315,7 @@ Runs **after** both per-layer backend (3A) and frontend (3B) testing stages comp
 **Exit phrase (must match exactly):** `System integration testing requirements satisfied.`
 
 ```
-1. Launch system-integration-test-agent with handoff (project-context.md critical journeys, architecture-summary.md, backend-summary.md, database-summary.md)
+1. Launch system-integration-test-agent with handoff (project-context.md critical journeys, architecture-summary.md, backend-summary.md, database-summary.md, nginx-summary.md)
 2. Launch context-agent to persist system-integration-test-report.md
 repeat:
   3. Launch system-integration-test-verify-agent (readonly) with context handoff
@@ -362,6 +396,7 @@ Your task: {specific phase instructions}
 
 On completion: return structured output for Context Agent persistence.
 Do NOT write to .sunny/context/ yourself — Context Agent owns the store.
+If you changed code/config: run `graphify update <project-root>` before returning (readonly agents: query graphify only, do not update).
 ```
 
 ## User communication

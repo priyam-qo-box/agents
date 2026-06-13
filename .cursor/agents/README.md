@@ -34,44 +34,47 @@ These constraints are enforced by every relevant agent:
 | 9 | **Database Agent** | `database-agent.md` | Hardens DB connections, schema, migrations, standards | No |
 | 10 | **Database Verify Agent** | `database-verify-agent.md` | Audits DB layer (schema, migrations, no mock data) | Yes |
 | 11 | **Database Fix Agent** | `database-fix-agent.md` | Fixes database review findings | No |
-| 12 | **Backend Unit Test Agent** | `backend-unit-test-agent.md` | Isolated unit tests (services, mappers, validators) | No |
-| 13 | **Backend Unit Test Verify Agent** | `backend-unit-test-verify-agent.md` | Verifies backend unit-layer coverage/quality | Yes |
-| 14 | **Backend Unit Test Fix Agent** | `backend-unit-test-fix-agent.md` | Closes backend unit-layer gaps | No |
-| 15 | **Backend Integration Test Agent** | `backend-integration-test-agent.md` | Repository/DB tests on Testcontainers PostgreSQL | No |
-| 16 | **Backend Integration Test Verify Agent** | `backend-integration-test-verify-agent.md` | Verifies backend integration-layer coverage/quality | Yes |
-| 17 | **Backend Integration Test Fix Agent** | `backend-integration-test-fix-agent.md` | Closes backend integration-layer gaps | No |
-| 18 | **Backend Functional Test Agent** | `backend-functional-test-agent.md` | REST/API + gateway HTTP contract tests | No |
-| 19 | **Backend Functional Test Verify Agent** | `backend-functional-test-verify-agent.md` | Verifies backend functional-layer coverage/quality | Yes |
-| 20 | **Backend Functional Test Fix Agent** | `backend-functional-test-fix-agent.md` | Closes backend functional-layer gaps | No |
-| 21 | **Frontend Unit Test Agent** | `frontend-unit-test-agent.md` | Isolated unit tests (utils, hooks, stores) | No |
-| 22 | **Frontend Unit Test Verify Agent** | `frontend-unit-test-verify-agent.md` | Verifies frontend unit-layer coverage/quality | Yes |
-| 23 | **Frontend Unit Test Fix Agent** | `frontend-unit-test-fix-agent.md` | Closes frontend unit-layer gaps | No |
-| 24 | **Frontend Integration Test Agent** | `frontend-integration-test-agent.md` | Component/page tests with MSW, routing, state | No |
-| 25 | **Frontend Integration Test Verify Agent** | `frontend-integration-test-verify-agent.md` | Verifies frontend component-layer coverage/quality | Yes |
-| 26 | **Frontend Integration Test Fix Agent** | `frontend-integration-test-fix-agent.md` | Closes frontend component-layer gaps | No |
-| 27 | **Frontend Functional Test Agent** | `frontend-functional-test-agent.md` | E2E user journeys (Playwright) | No |
-| 28 | **Frontend Functional Test Verify Agent** | `frontend-functional-test-verify-agent.md` | Verifies frontend E2E journey coverage | Yes |
-| 29 | **Frontend Functional Test Fix Agent** | `frontend-functional-test-fix-agent.md` | Closes frontend E2E gaps | No |
-| 30 | **System Integration Test Agent** | `system-integration-test-agent.md` | Collective full-stack tests (frontend + backend + PostgreSQL together) | No |
-| 31 | **System Integration Test Verify Agent** | `system-integration-test-verify-agent.md` | Verifies cross-tier journey coverage on the real running stack | Yes |
-| 32 | **System Integration Test Fix Agent** | `system-integration-test-fix-agent.md` | Closes collective full-stack testing gaps | No |
-| 33 | **Swagger Agent** | `swagger-agent.md` | OpenAPI/Swagger docs for every endpoint (springdoc) | No |
-| 34 | **Swagger Verify Agent** | `swagger-verify-agent.md` | Verifies spec completeness and accuracy | Yes |
-| 35 | **Swagger Fix Agent** | `swagger-fix-agent.md` | Closes Swagger documentation gaps | No |
-| 36 | **Javadoc Agent** | `javadoc-agent.md` | Javadoc for every public Java API; failOnWarnings build | No |
-| 37 | **Javadoc Verify Agent** | `javadoc-verify-agent.md` | Verifies Javadoc coverage and clean build | Yes |
-| 38 | **Javadoc Fix Agent** | `javadoc-fix-agent.md` | Closes Javadoc gaps | No |
-| 39 | **API Collection Agent** | `api-collection-agent.md` | Postman collection + environments from the spec (Newman CI) | No |
-| 40 | **API Collection Verify Agent** | `api-collection-verify-agent.md` | Verifies collection coverage and green Newman run | Yes |
-| 41 | **API Collection Fix Agent** | `api-collection-fix-agent.md` | Closes API collection gaps | No |
-| 42 | **API Test Agent** | `api-test-agent.md` | Exercises every endpoint; asserts correct/appropriate status | No |
-| 43 | **API Test Verify Agent** | `api-test-verify-agent.md` | Verifies every endpoint returns its correct status | Yes |
-| 44 | **API Test Fix Agent** | `api-test-fix-agent.md` | Fixes wrong-status endpoints + missing assertions | No |
-| 45 | **API Performance Test Agent** | `api-performance-test-agent.md` | Load test at 1/10/20/30 concurrency; capture metrics | No |
-| 46 | **API Performance Test Verify Agent** | `api-performance-test-verify-agent.md` | Verifies all levels covered + thresholds met | Yes |
-| 47 | **API Performance Test Fix Agent** | `api-performance-test-fix-agent.md` | Remediates performance breaches | No |
-| 48 | **Production Standards Agent** | `production-standards-agent.md` | Audits all prior outputs + final security/readiness audit + comprehensive report | Yes |
-| 49 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
+| 12 | **Nginx & SSL Edge Agent** | `nginx-agent.md` | Reverse proxy + domain + Certbot/Let's Encrypt | No |
+| 13 | **Nginx Verify Agent** | `nginx-verify-agent.md` | Audits edge proxy, HTTPS, cert renewal | Yes |
+| 14 | **Nginx Fix Agent** | `nginx-fix-agent.md` | Fixes nginx/SSL findings | No |
+| 15 | **Backend Unit Test Agent** | `backend-unit-test-agent.md` | Isolated unit tests (services, mappers, validators) | No |
+| 16 | **Backend Unit Test Verify Agent** | `backend-unit-test-verify-agent.md` | Verifies backend unit-layer coverage/quality | Yes |
+| 17 | **Backend Unit Test Fix Agent** | `backend-unit-test-fix-agent.md` | Closes backend unit-layer gaps | No |
+| 18 | **Backend Integration Test Agent** | `backend-integration-test-agent.md` | Repository/DB tests on Testcontainers PostgreSQL | No |
+| 19 | **Backend Integration Test Verify Agent** | `backend-integration-test-verify-agent.md` | Verifies backend integration-layer coverage/quality | Yes |
+| 20 | **Backend Integration Test Fix Agent** | `backend-integration-test-fix-agent.md` | Closes backend integration-layer gaps | No |
+| 21 | **Backend Functional Test Agent** | `backend-functional-test-agent.md` | REST/API + gateway HTTP contract tests | No |
+| 22 | **Backend Functional Test Verify Agent** | `backend-functional-test-verify-agent.md` | Verifies backend functional-layer coverage/quality | Yes |
+| 23 | **Backend Functional Test Fix Agent** | `backend-functional-test-fix-agent.md` | Closes backend functional-layer gaps | No |
+| 24 | **Frontend Unit Test Agent** | `frontend-unit-test-agent.md` | Isolated unit tests (utils, hooks, stores) | No |
+| 25 | **Frontend Unit Test Verify Agent** | `frontend-unit-test-verify-agent.md` | Verifies frontend unit-layer coverage/quality | Yes |
+| 26 | **Frontend Unit Test Fix Agent** | `frontend-unit-test-fix-agent.md` | Closes frontend unit-layer gaps | No |
+| 27 | **Frontend Integration Test Agent** | `frontend-integration-test-agent.md` | Component/page tests with MSW, routing, state | No |
+| 28 | **Frontend Integration Test Verify Agent** | `frontend-integration-test-verify-agent.md` | Verifies frontend component-layer coverage/quality | Yes |
+| 29 | **Frontend Integration Test Fix Agent** | `frontend-integration-test-fix-agent.md` | Closes frontend component-layer gaps | No |
+| 30 | **Frontend Functional Test Agent** | `frontend-functional-test-agent.md` | E2E user journeys (Playwright) | No |
+| 31 | **Frontend Functional Test Verify Agent** | `frontend-functional-test-verify-agent.md` | Verifies frontend E2E journey coverage | Yes |
+| 32 | **Frontend Functional Test Fix Agent** | `frontend-functional-test-fix-agent.md` | Closes frontend E2E gaps | No |
+| 33 | **System Integration Test Agent** | `system-integration-test-agent.md` | Collective full-stack tests (frontend + backend + PostgreSQL together) | No |
+| 34 | **System Integration Test Verify Agent** | `system-integration-test-verify-agent.md` | Verifies cross-tier journey coverage on the real running stack | Yes |
+| 35 | **System Integration Test Fix Agent** | `system-integration-test-fix-agent.md` | Closes collective full-stack testing gaps | No |
+| 36 | **Swagger Agent** | `swagger-agent.md` | OpenAPI/Swagger docs for every endpoint (springdoc) | No |
+| 37 | **Swagger Verify Agent** | `swagger-verify-agent.md` | Verifies spec completeness and accuracy | Yes |
+| 38 | **Swagger Fix Agent** | `swagger-fix-agent.md` | Closes Swagger documentation gaps | No |
+| 39 | **Javadoc Agent** | `javadoc-agent.md` | Javadoc for every public Java API; failOnWarnings build | No |
+| 40 | **Javadoc Verify Agent** | `javadoc-verify-agent.md` | Verifies Javadoc coverage and clean build | Yes |
+| 41 | **Javadoc Fix Agent** | `javadoc-fix-agent.md` | Closes Javadoc gaps | No |
+| 42 | **API Collection Agent** | `api-collection-agent.md` | Postman collection + environments from the spec (Newman CI) | No |
+| 43 | **API Collection Verify Agent** | `api-collection-verify-agent.md` | Verifies collection coverage and green Newman run | Yes |
+| 44 | **API Collection Fix Agent** | `api-collection-fix-agent.md` | Closes API collection gaps | No |
+| 45 | **API Test Agent** | `api-test-agent.md` | Exercises every endpoint; asserts correct/appropriate status | No |
+| 46 | **API Test Verify Agent** | `api-test-verify-agent.md` | Verifies every endpoint returns its correct status | Yes |
+| 47 | **API Test Fix Agent** | `api-test-fix-agent.md` | Fixes wrong-status endpoints + missing assertions | No |
+| 48 | **API Performance Test Agent** | `api-performance-test-agent.md` | Load test at 1/10/20/30 concurrency; capture metrics | No |
+| 49 | **API Performance Test Verify Agent** | `api-performance-test-verify-agent.md` | Verifies all levels covered + thresholds met | Yes |
+| 50 | **API Performance Test Fix Agent** | `api-performance-test-fix-agent.md` | Remediates performance breaches | No |
+| 51 | **Production Standards Agent** | `production-standards-agent.md` | Audits all prior outputs + final security/readiness audit + comprehensive report | Yes |
+| 52 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
 
 ---
 
@@ -84,6 +87,7 @@ Every agent has a human codename. A family shares a base name and its verify/fix
 | Arjun (architecture) | Arjun — `architecture-agent` | Arjun Verify — `architecture-verify-agent` | Arjun Fix — `architecture-fix-agent` |
 | Vikram (backend build) | Vikram — `jhipster-backend-agent` | Vikram Verify — `jhipster-verify-agent` | Vikram Fix — `issue-resolution-agent` |
 | Dhruv (database) | Dhruv — `database-agent` | Dhruv Verify — `database-verify-agent` | Dhruv Fix — `database-fix-agent` |
+| Naveen (nginx & SSL) | Naveen — `nginx-agent` | Naveen Verify — `nginx-verify-agent` | Naveen Fix — `nginx-fix-agent` |
 | Rohan (backend unit) | Rohan — `backend-unit-test-agent` | Rohan Verify — `backend-unit-test-verify-agent` | Rohan Fix — `backend-unit-test-fix-agent` |
 | Karan (backend integration) | Karan — `backend-integration-test-agent` | Karan Verify — `backend-integration-test-verify-agent` | Karan Fix — `backend-integration-test-fix-agent` |
 | Aditya (backend functional) | Aditya — `backend-functional-test-agent` | Aditya Verify — `backend-functional-test-verify-agent` | Aditya Fix — `backend-functional-test-fix-agent` |
@@ -107,6 +111,8 @@ Every agent has a human codename. A family shares a base name and its verify/fix
 Cursor sub-agents run in **isolation** and are launched via the Task tool. Because an isolated sub-agent has no memory of previous runs, all state lives in a **file-based context store** owned by the Context Agent. The main chat agent acts as the orchestration driver, following the playbook in `../rules/sunny-orchestrator.mdc`.
 
 The golden rule: **after every agent runs, the Context Agent persists its output before the next agent starts.** No agent assumes in-memory state from a previous step.
+
+**Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes. See [`../rules/graphify.mdc`](../rules/graphify.mdc).
 
 > For the full set of architecture, loop, data-flow, and state-machine diagrams, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
@@ -132,23 +138,28 @@ flowchart TD
         DBV[Database Verify Agent]
         DBF[Database Fix Agent]
     end
-    subgraph btest [Stage 5 - Backend Testing - per-layer verify/fix loops]
+    subgraph ngx [Stage 5 - Nginx & SSL Loop]
+        NGA[Nginx Agent]
+        NGV[Nginx Verify Agent]
+        NGF[Nginx Fix Agent]
+    end
+    subgraph btest [Stage 6 - Backend Testing - per-layer verify/fix loops]
         BGEN["unit + integration + functional<br/>test generation (once)"]
         BLAYERS["For each layer (unit -> integration -> functional):<br/>backend-{layer}-test-verify-agent<br/>-> [loop if gaps] backend-{layer}-test-fix-agent"]
     end
-    subgraph ftest [Stage 6 - Frontend Testing - per-layer verify/fix loops]
+    subgraph ftest [Stage 7 - Frontend Testing - per-layer verify/fix loops]
         FGEN["unit + integration + functional<br/>test generation (once)"]
         FLAYERS["For each layer (unit -> integration -> functional):<br/>frontend-{layer}-test-verify-agent<br/>-> [loop if gaps] frontend-{layer}-test-fix-agent"]
     end
-    subgraph sitest [Stage 7 - System Integration Testing - collective full-stack loop]
+    subgraph sitest [Stage 8 - System Integration Testing - collective full-stack loop]
         SIGEN["system-integration-test-agent<br/>(whole stack: frontend + backend + PostgreSQL)"]
         SILOOP["system-integration-test-verify-agent<br/>-> [loop if gaps] system-integration-test-fix-agent"]
     end
-    subgraph docapi [Stages 8-12 - Documentation & API loops]
+    subgraph docapi [Stages 9-13 - Documentation & API loops]
         DGEN["Swagger -> Javadoc -> API collection -> API tests -> API performance"]
         DLOOP["each stage: {stage}-agent -> {stage}-verify-agent<br/>-> [loop if gaps] {stage}-fix-agent"]
     end
-    subgraph prod [Stage 13 - Production Loop]
+    subgraph prod [Stage 14 - Production Loop]
         PROD["Production Standards Agent<br/>(audits ALL prior outputs + final report)"]
         PFIX[Production Fix Agent]
     end
@@ -165,7 +176,11 @@ flowchart TD
     DBA --> DBV
     DBV -->|"issues"| DBF
     DBF --> DBV
-    DBV -->|"Database approved."| BGEN
+    DBV -->|"Database approved."| NGA
+    NGA --> NGV
+    NGV -->|"issues"| NGF
+    NGF --> NGV
+    NGV -->|"Nginx and SSL approved."| BGEN
     BGEN --> BLAYERS
     BLAYERS -->|"all 3 backend layers satisfied"| FGEN
     FGEN --> FLAYERS
@@ -183,6 +198,7 @@ flowchart TD
     VER -.persist.-> Ctx
     FIX -.persist.-> Ctx
     DBA -.persist.-> Ctx
+    NGA -.persist.-> Ctx
     BGEN -.persist.-> Ctx
     BLAYERS -.persist.-> Ctx
     FGEN -.persist.-> Ctx
@@ -209,6 +225,7 @@ sequenceDiagram
     participant V as Verify Agent
     participant I as Issue Resolution
     participant D as Database (gen+verify+fix)
+    participant N as Nginx & SSL (gen+verify+fix)
     participant BT as Backend Test Gen+Fix (per layer)
     participant BTV as Backend Layer Verifiers
     participant FT as Frontend Test Gen+Fix (per layer)
@@ -267,7 +284,23 @@ sequenceDiagram
         end
     end
 
-    Note over S,BTV: Stage 5 - Backend tests (generate once, per-layer loops, max 5 each)
+    Note over S,N: Stage 5 - Nginx & SSL edge (max 5)
+    S->>N: Configure reverse proxy + domain + Certbot
+    N-->>S: nginx-summary
+    S->>C: Persist nginx-summary.md
+    loop Until "Nginx and SSL approved" or max iterations
+        S->>N: Verify edge (readonly)
+        N-->>S: report + verdict
+        S->>C: Persist nginx-verify-report.md
+        alt Not approved and iter < 5
+            S->>N: nginx-fix-agent closes findings
+            S->>C: Persist nginx-fix-log.md
+        else Approved or max iterations
+            note over S: break or blocked
+        end
+    end
+
+    Note over S,BTV: Stage 6 - Backend tests (generate once, per-layer loops, max 5 each)
     S->>BT: Generate unit, integration, functional
     S->>C: Persist backend-test-report.md
     loop For each layer: unit -> integration -> functional
@@ -281,7 +314,7 @@ sequenceDiagram
         end
     end
 
-    Note over S,FTV: Stage 6 - Frontend tests (generate once, per-layer loops, max 5 each)
+    Note over S,FTV: Stage 7 - Frontend tests (generate once, per-layer loops, max 5 each)
     S->>FT: Generate unit, integration, functional
     S->>C: Persist frontend-test-report.md
     loop For each layer: unit -> integration -> functional
@@ -295,7 +328,7 @@ sequenceDiagram
         end
     end
 
-    Note over S,SIV: Stage 7 - System integration tests (collective, max 5)
+    Note over S,SIV: Stage 8 - System integration tests (collective, max 5)
     S->>SI: Generate full-stack tests (frontend + backend + PostgreSQL)
     S->>C: Persist system-integration-test-report.md
     loop Until "System integration testing requirements satisfied" or max iterations
@@ -309,7 +342,7 @@ sequenceDiagram
         end
     end
 
-    Note over S,DAV: Stages 8-12 - Documentation & API (in order, max 5 each)
+    Note over S,DAV: Stages 9-13 - Documentation & API (in order, max 5 each)
     loop For each stage: swagger -> javadoc -> api-collection -> api-test -> api-performance
         S->>DA: Generate stage artifacts
         S->>C: Persist {stage}-report.md
@@ -325,7 +358,7 @@ sequenceDiagram
         end
     end
 
-    Note over S,PF: Stage 13 - Production loop (audits ALL prior outputs, max 5)
+    Note over S,PF: Stage 14 - Production loop (audits ALL prior outputs, max 5)
     loop Until "Final approval granted" or max iterations
         S->>P: Final audit
         S->>C: Persist production-report.md
@@ -350,6 +383,7 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | Architecture | `Architecture approved.` | Architecture Verify Agent |
 | Backend verification | `No issues found. Backend approved.` | JHipster Verify Agent |
 | Database | `Database approved.` | Database Verify Agent |
+| Nginx & SSL | `Nginx and SSL approved.` | Nginx Verify Agent |
 | Backend unit testing | `Backend unit testing requirements satisfied.` | Backend Unit Test Verify Agent |
 | Backend integration testing | `Backend integration testing requirements satisfied.` | Backend Integration Test Verify Agent |
 | Backend functional testing | `Backend functional testing requirements satisfied.` | Backend Functional Test Verify Agent |
@@ -364,7 +398,7 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | API performance | `API performance testing requirements satisfied.` | API Performance Test Verify Agent |
 | Production | `Final approval granted. System is production-ready.` | Production Standards Agent |
 
-Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`. Stages run in order (architecture → backend → database → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
+Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`. Stages run in order (architecture → backend → database → nginx & SSL → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
 
 ---
 
@@ -384,6 +418,9 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ├── database-summary.md            # Database hardening output
 ├── database-verify-report.md      # Database audit findings + verdict
 ├── database-fix-log.md            # History of database fix cycles
+├── nginx-summary.md               # Nginx reverse proxy + TLS/Certbot output
+├── nginx-verify-report.md         # Nginx edge audit findings + verdict
+├── nginx-fix-log.md               # History of nginx/SSL fix cycles
 ├── backend-test-report.md         # Backend test generation output + coverage
 ├── backend-unit-test-verify-report.md         # Backend unit-layer verify findings + verdict
 ├── backend-unit-test-fix-log.md               # History of backend unit-layer fix cycles
@@ -420,6 +457,7 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
   "architectureVerifyIterations": 1,
   "backendVerifyIterations": 2,
   "databaseVerifyIterations": 1,
+  "nginxVerifyIterations": 0,
   "backendUnitTestVerifyIterations": 1,
   "backendIntegrationTestVerifyIterations": 0,
   "backendFunctionalTestVerifyIterations": 0,
@@ -437,6 +475,7 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
   "lastVerdict": "Backend unit testing requirements not met.",
   "blockers": [],
   "completedAgents": ["context-agent", "jhipster-backend-agent", "jhipster-verify-agent"],
+  "graphUpdatedAt": "2026-06-12T06:18:00Z",
   "updatedAt": "2026-06-12T06:20:00Z"
 }
 ```

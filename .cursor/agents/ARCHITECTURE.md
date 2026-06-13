@@ -8,7 +8,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 0. System at a glance
 
-**49 orchestrated agents** (plus a standalone documentation agent), driven through **16 bounded verify/fix loops**.
+**52 orchestrated agents** (plus a standalone documentation agent), driven through **17 bounded verify/fix loops**.
 
 | Group | Count | Agents |
 |-------|-------|--------|
@@ -16,6 +16,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | Architecture & boilerplate | 3 | `architecture-agent`, `architecture-verify-agent` (readonly), `architecture-fix-agent` |
 | Backend build & verify | 3 | `jhipster-backend-agent`, `jhipster-verify-agent` (readonly), `issue-resolution-agent` |
 | Database | 3 | `database-agent`, `database-verify-agent` (readonly), `database-fix-agent` |
+| Nginx & SSL edge | 3 | `nginx-agent`, `nginx-verify-agent` (readonly), `nginx-fix-agent` |
 | Backend tests (3 layers × gen/verify/fix) | 9 | `backend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
 | Frontend tests (3 layers × gen/verify/fix) | 9 | `frontend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
 | System integration tests (collective) | 3 | `system-integration-test-agent`, `system-integration-test-verify-agent` (readonly), `system-integration-test-fix-agent` |
@@ -27,9 +28,10 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
 | Standalone (not orchestrated) | 1 | `documentation` |
 
-- **16 verify/fix loops:** architecture + backend code + database + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production.
-- **16 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
-- **Pipeline order:** architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
+- **17 verify/fix loops:** architecture + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production.
+- **17 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
+- **Pipeline order:** architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
+- **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
 - **Production agent** audits every prior stage's completeness (do's and don'ts) and emits one comprehensive final report.
 - **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
 - **One writer of shared memory:** `context-agent` owns `.sunny/context/`.
@@ -43,6 +45,7 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 | architecture | Arjun | Arjun Verify | Arjun Fix |
 | backend build | Vikram | Vikram Verify | Vikram Fix |
 | database | Dhruv | Dhruv Verify | Dhruv Fix |
+| nginx & SSL | Naveen | Naveen Verify | Naveen Fix |
 | backend unit / integration / functional | Rohan / Karan / Aditya | + Verify | + Fix |
 | frontend unit / integration / functional | Priya / Neha / Anika | + Verify | + Fix |
 | system integration | Sanjay | Sanjay Verify | Sanjay Fix |
@@ -68,12 +71,13 @@ flowchart TB
         S1["Stage 2 - Generate backend<br/>jhipster-backend-agent"]
         S2["Stage 3 - Verify backend (readonly)<br/>jhipster-verify-agent<br/>fix: issue-resolution-agent"]
         SD["Stage 4 - Database hardening<br/>database-agent<br/>verify: database-verify-agent (readonly)<br/>fix: database-fix-agent"]
-        S3["Stage 5 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
-        S4["Stage 6 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
-        SI["Stage 7 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
-        SDOC["Stages 8-12 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
-        S5["Stage 13 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
-        S0 --> S1 --> S2 --> SD --> S3 --> S4 --> SI --> SDOC --> S5
+        SN["Stage 5 - Nginx & SSL edge<br/>nginx-agent: reverse proxy + domain + Certbot<br/>verify: nginx-verify-agent (readonly)<br/>fix: nginx-fix-agent"]
+        S3["Stage 6 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
+        S4["Stage 7 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
+        SI["Stage 8 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
+        SDOC["Stages 9-13 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
+        S5["Stage 14 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
+        S0 --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5
     end
 
     Driver -->|launches each stage in order| pipeline
@@ -96,7 +100,7 @@ Each agent with its key points, grouped by stage. Readonly agents only audit and
 flowchart TB
     subgraph orch [Orchestration and Memory]
         direction LR
-        DRV["Sunny / Driver<br/>• Orchestrates all 16 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
+        DRV["Sunny / Driver<br/>• Orchestrates all 17 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
         CTX["context-agent<br/>• Sole writer of .sunny/context<br/>• Structured summaries + state.json<br/>• Trims handoffs to next agent<br/>• Tracks phase + iteration counters"]
     end
 
@@ -127,7 +131,16 @@ flowchart TB
         DBV -->|issues| DBF --> DBV
     end
 
-    subgraph s3 [Stage 5 - Backend testing - per-layer verify and fix]
+    subgraph sNg [Stage 5 - Nginx & SSL edge]
+        direction LR
+        NG["nginx-agent<br/>• Reverse proxy: frontend + gateway on domain<br/>• TLS termination, HTTP→HTTPS redirect<br/>• Certbot/Let's Encrypt + auto-renewal"]
+        NGV["nginx-verify-agent - readonly<br/>• Routing + TLS + Certbot audit<br/>• Exit: Nginx and SSL approved."]
+        NGF["nginx-fix-agent<br/>• Fixes edge proxy/SSL/cert findings"]
+        NG --> NGV
+        NGV -->|issues| NGF --> NGV
+    end
+
+    subgraph s3 [Stage 6 - Backend testing - per-layer verify and fix]
         direction TB
         subgraph s3u [Unit layer]
             direction LR
@@ -156,7 +169,7 @@ flowchart TB
         s3u --> s3i --> s3f
     end
 
-    subgraph s4 [Stage 6 - Frontend testing - per-layer verify and fix]
+    subgraph s4 [Stage 7 - Frontend testing - per-layer verify and fix]
         direction TB
         subgraph s4u [Unit layer]
             direction LR
@@ -185,7 +198,7 @@ flowchart TB
         s4u --> s4i --> s4f
     end
 
-    subgraph sSi [Stage 7 - System integration testing - collective full-stack]
+    subgraph sSi [Stage 8 - System integration testing - collective full-stack]
         direction LR
         SI["system-integration-test-agent<br/>• Runs whole stack together<br/>• Real frontend + gateway + services + PostgreSQL<br/>• Cross-tier journeys + auth propagation"]
         SIV["system-integration-test-verify-agent - readonly<br/>• Full-stack journey coverage on real stack<br/>• UI + API + DB persistence asserted<br/>• Exit: System integration testing requirements satisfied."]
@@ -194,7 +207,7 @@ flowchart TB
         SIV -->|gaps| SIF --> SIV
     end
 
-    subgraph sDoc [Stages 8-12 - Documentation and API]
+    subgraph sDoc [Stages 9-13 - Documentation and API]
         direction TB
         subgraph sSw [Swagger / OpenAPI]
             direction LR
@@ -239,14 +252,14 @@ flowchart TB
         sSw --> sJd --> sAc --> sAt --> sAp
     end
 
-    subgraph s5 [Stage 13 - Production]
+    subgraph s5 [Stage 14 - Production]
         direction LR
         PS["production-standards-agent - readonly<br/>• Audits ALL prior stage outputs (do's/don'ts)<br/>• Security + readiness + standards + performance<br/>• Comprehensive final report<br/>• Exit: Final approval granted. System is production-ready."]
         PF["production-fix-agent<br/>• Remediates PR findings<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
         PS -->|blocked| PF --> PS
     end
 
-    orch --> sArch --> s12 --> sDb --> s3 --> s4 --> sSi --> sDoc --> s5
+    orch --> sArch --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5
 ```
 
 ---
@@ -287,7 +300,16 @@ flowchart TD
     CapD -->|No| DFix[database-fix-agent] --> PD3["context-agent<br/>database-fix-log.md"] --> DVer
     CapD -->|Yes| Blocked
 
-    DApproved -->|Yes| BGen["backend test generation<br/>unit + integration + functional<br/>context-agent: backend-test-report.md"]
+    DApproved -->|Yes| NGen[nginx-agent]
+    NGen --> PN1["context-agent<br/>nginx-summary.md"]
+    PN1 --> NVer[nginx-verify-agent]
+    NVer --> PN2["context-agent<br/>nginx-verify-report.md"]
+    PN2 --> NApproved{"lastVerdict ==<br/>'Nginx and SSL approved.'?"}
+    NApproved -->|No| CapN{"nginxVerifyIterations<br/>>= 5?"}
+    CapN -->|No| NFix[nginx-fix-agent] --> PN3["context-agent<br/>nginx-fix-log.md"] --> NVer
+    CapN -->|Yes| Blocked
+
+    NApproved -->|Yes| BGen["backend test generation<br/>unit + integration + functional<br/>context-agent: backend-test-report.md"]
     BGen --> BLoop["Backend per-layer verify/fix loops<br/>(see Section 4)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
     BLoop --> BSat{"all 3 backend layers<br/>satisfied?"}
     BSat -->|No, any layer hit cap 5| Blocked
@@ -360,11 +382,26 @@ flowchart LR
     G[database-agent] --> A[database-verify-agent]
     A --> B["context-agent<br/>database-verify-report.md"]
     B --> C{"Database approved?"}
-    C -->|Yes| Exit([Exit to Backend tests])
+    C -->|Yes| Exit([Exit to Nginx & SSL])
     C -->|No| D{databaseVerifyIterations<br/>>= 5?}
     D -->|Yes| Stop([Blocked - escalate])
     D -->|No| E[database-fix-agent]
     E --> F["context-agent<br/>database-fix-log.md"]
+    F --> A
+```
+
+### 3.4 Nginx & SSL edge loop
+
+```mermaid
+flowchart LR
+    G[nginx-agent] --> A[nginx-verify-agent]
+    A --> B["context-agent<br/>nginx-verify-report.md"]
+    B --> C{"Nginx and SSL approved?"}
+    C -->|Yes| Exit([Exit to Backend tests])
+    C -->|No| D{nginxVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Blocked - escalate])
+    D -->|No| E[nginx-fix-agent]
+    E --> F["context-agent<br/>nginx-fix-log.md"]
     F --> A
 ```
 
@@ -524,18 +561,19 @@ flowchart TD
 
 1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
 2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
-3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; `productionVerifyIterations`).
+3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; `productionVerifyIterations`).
 4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
 
-### Same mechanism across all sixteen loops
+### Same mechanism across all seventeen loops
 
 | Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
 |------|----------------------|-----------|---------|-------------|
 | Architecture | `architecture-verify-agent` | `architecture-fix-agent` | `architectureVerifyIterations` | `Architecture approved.` |
 | Backend code | `jhipster-verify-agent` | `issue-resolution-agent` | `backendVerifyIterations` | `No issues found. Backend approved.` |
 | Database | `database-verify-agent` | `database-fix-agent` | `databaseVerifyIterations` | `Database approved.` |
+| Nginx & SSL | `nginx-verify-agent` | `nginx-fix-agent` | `nginxVerifyIterations` | `Nginx and SSL approved.` |
 | Backend unit tests | `backend-unit-test-verify-agent` | `backend-unit-test-fix-agent` | `backendUnitTestVerifyIterations` | `Backend unit testing requirements satisfied.` |
 | Backend integration tests | `backend-integration-test-verify-agent` | `backend-integration-test-fix-agent` | `backendIntegrationTestVerifyIterations` | `Backend integration testing requirements satisfied.` |
 | Backend functional tests | `backend-functional-test-verify-agent` | `backend-functional-test-fix-agent` | `backendFunctionalTestVerifyIterations` | `Backend functional testing requirements satisfied.` |
@@ -567,6 +605,7 @@ sequenceDiagram
     participant V as Verify Agent
     participant I as Issue Resolution
     participant D as Database (gen+verify+fix)
+    participant N as Nginx & SSL (gen+verify+fix)
     participant BT as Backend Test Gen+Fix (per layer)
     participant BTV as Backend Layer Verifiers
     participant FT as Frontend Test Gen+Fix (per layer)
@@ -637,7 +676,25 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 5 - Backend tests (generate once, then per-layer loops)
+    note right of S: Stage 5 - Nginx & SSL edge (max 5)
+    S->>N: Configure reverse proxy + domain + Certbot
+    N-->>S: nginx-summary
+    S->>C: Persist nginx-summary.md
+    loop until "Nginx and SSL approved"
+        S->>N: Verify edge layer (readonly)
+        N-->>S: report + verdict
+        S->>C: Persist nginx-verify-report.md
+        alt Not approved and iter < 5
+            S->>N: nginx-fix-agent closes findings
+            S->>C: Persist nginx-fix-log.md
+        else Approved or max iterations
+            note over S: break or blocked
+        end
+    end
+    end
+
+    rect rgb(120,120,120)
+    note right of S: Stage 6 - Backend tests (generate once, then per-layer loops)
     S->>BT: Generate unit, integration, functional
     BT-->>S: tests + coverage
     S->>C: Persist backend-test-report.md
@@ -656,7 +713,7 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 6 - Frontend tests (generate once, then per-layer loops)
+    note right of S: Stage 7 - Frontend tests (generate once, then per-layer loops)
     S->>FT: Generate unit, integration, functional
     FT-->>S: tests + coverage
     S->>C: Persist frontend-test-report.md
@@ -675,7 +732,7 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 7 - System integration tests (collective, max 5)
+    note right of S: Stage 8 - System integration tests (collective, max 5)
     S->>SI: Generate full-stack tests (frontend + backend + PostgreSQL)
     SI-->>S: tests + run result
     S->>C: Persist system-integration-test-report.md
@@ -694,7 +751,7 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stages 8-12 - Documentation & API (in order, max 5 each)
+    note right of S: Stages 9-13 - Documentation & API (in order, max 5 each)
     loop for each stage: swagger -> javadoc -> api-collection -> api-test -> api-performance
         S->>DA: Generate stage artifacts (spec / javadoc / postman / status tests / load scripts)
         DA-->>S: artifacts + run result
@@ -714,7 +771,7 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 13 - Production (audits ALL prior outputs, max 5)
+    note right of S: Stage 14 - Production (audits ALL prior outputs, max 5)
     loop until "Final approval granted"
         S->>P: Completeness audit of all stages + final audit
         P-->>S: comprehensive report + verdict
@@ -751,6 +808,9 @@ flowchart LR
         DS[database-summary.md]
         DVR[database-verify-report.md]
         DFL[database-fix-log.md]
+        NS[nginx-summary.md]
+        NVR[nginx-verify-report.md]
+        NFL[nginx-fix-log.md]
         BTR[backend-test-report.md]
         BTV6["backend-{unit,integration,functional}-<br/>test-verify-report.md (x3)"]
         BTF6["backend-{unit,integration,functional}-<br/>test-fix-log.md (x3)"]
@@ -795,6 +855,17 @@ flowchart LR
     DVR --> DBF[database-fix]
     DS --> DBF
     DFL --> DBF
+
+    BS --> NGA[nginx-agent]
+    DS --> NGA
+    AS --> NGA
+    PC --> NGA
+    NVR --> NGA
+    NS --> NGVA[nginx-verify]
+    PC --> NGVA
+    NVR --> NGFIX[nginx-fix]
+    NS --> NGFIX
+    NFL --> NGFIX
 
     BS --> BTEST[backend test gen agents x3]
     PC --> BTEST
@@ -867,7 +938,12 @@ stateDiagram-v2
     database --> database_verify
     database_verify --> database_fix: not approved
     database_fix --> database_verify: re-audit
-    database_verify --> testing_backend: Database approved
+    database_verify --> nginx: Database approved
+
+    nginx --> nginx_verify
+    nginx_verify --> nginx_fix: not approved
+    nginx_fix --> nginx_verify: re-audit
+    nginx_verify --> testing_backend: Nginx and SSL approved
 
     testing_backend --> testing_backend: layer not satisfied (fix and re-verify)
     testing_backend --> testing_frontend: all 3 backend layers satisfied
@@ -897,6 +973,7 @@ stateDiagram-v2
     architecture_verify --> blocked: max iterations
     backend_verify --> blocked: max iterations
     database_verify --> blocked: max iterations
+    nginx_verify --> blocked: max iterations
     testing_backend --> blocked: max iterations
     testing_frontend --> blocked: max iterations
     testing_system --> blocked: max iterations
@@ -920,14 +997,15 @@ stateDiagram-v2
 | **Driver** | Main chat agent that follows the playbook and launches sub-agents via the Task tool |
 | **Solid arrow** | Control flow / Task launch |
 | **Dotted arrow** | Data flow (persist / handoff) |
-| **readonly agent** | Audits and reports only; makes no code changes (architecture-verify, jhipster-verify, database-verify, the six per-layer test-verify agents, system-integration-test-verify, the five doc/API verify agents, production-standards) |
+| **readonly agent** | Audits and reports only; makes no code changes (architecture-verify, jhipster-verify, database-verify, nginx-verify, the six per-layer test-verify agents, system-integration-test-verify, the five doc/API verify agents, production-standards) |
 | **Exit phrase** | Exact string in `state.json.lastVerdict` that breaks a loop |
 | **Architecture exit** | `Architecture approved.` |
 | **Backend code exit** | `No issues found. Backend approved.` |
 | **Database exit** | `Database approved.` |
+| **Nginx & SSL exit** | `Nginx and SSL approved.` |
 | **Backend test exits** | `Backend unit testing requirements satisfied.` / `Backend integration testing requirements satisfied.` / `Backend functional testing requirements satisfied.` |
 | **Frontend test exits** | `Frontend unit testing requirements satisfied.` / `Frontend integration testing requirements satisfied.` / `Frontend functional testing requirements satisfied.` |
 | **System integration exit** | `System integration testing requirements satisfied.` |
 | **Doc/API exits** | `Swagger documentation requirements satisfied.` / `Javadoc documentation requirements satisfied.` / `API collection requirements satisfied.` / `API testing requirements satisfied.` / `API performance testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
+| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
