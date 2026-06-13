@@ -46,6 +46,9 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── frontend-functional-test-agent.md           # Frontend E2E tests (Playwright)
     ├── frontend-functional-test-verify-agent.md    # Verifies frontend E2E tests (readonly)
     ├── frontend-functional-test-fix-agent.md       # Closes frontend E2E-layer gaps
+    ├── system-integration-test-agent.md            # Collective full-stack tests (frontend + backend + PostgreSQL)
+    ├── system-integration-test-verify-agent.md     # Verifies cross-tier journeys on the real stack (readonly)
+    ├── system-integration-test-fix-agent.md        # Closes collective full-stack testing gaps
     ├── production-standards-agent.md      # Final production audit (readonly)
     ├── production-fix-agent.md            # Remediates production audit findings
     └── documentation.md                   # Standalone: Swagger + Postman + Javadoc
@@ -90,6 +93,9 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | **Frontend Functional Test Agent** | E2E user journeys (Playwright) | No |
 | **Frontend Functional Test Verify Agent** | Verifies frontend E2E journey coverage | Yes |
 | **Frontend Functional Test Fix Agent** | Closes frontend E2E gaps | No |
+| **System Integration Test Agent** | Collective full-stack tests (frontend + backend + PostgreSQL together) | No |
+| **System Integration Test Verify Agent** | Verifies cross-tier journey coverage on the real running stack | Yes |
+| **System Integration Test Fix Agent** | Closes collective full-stack testing gaps | No |
 | **Production Standards Agent** | Final security / readiness / performance audit | Yes |
 | **Production Fix Agent** | Remediates production audit findings | No |
 
@@ -117,12 +123,14 @@ flowchart LR
     BTL -->|"layer not satisfied"| BFIX[Fix that layer] --> BTL
     BTL -->|"all 3 backend layers satisfied"| FTL{"Frontend test loops<br/>unit -> integration -> functional"}
     FTL -->|"layer not satisfied"| FFIX[Fix that layer] --> FTL
-    FTL -->|"all 3 frontend layers satisfied"| PL{Production loop}
+    FTL -->|"all 3 frontend layers satisfied"| SIL{"System integration loop<br/>frontend + backend + PostgreSQL"}
+    SIL -->|"gaps"| SIFIX[Fix] --> SIL
+    SIL -->|"System integration testing satisfied"| PL{Production loop}
     PL -->|"blocked"| PFIX[Fix production] --> PL
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**. Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
+The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**; the system integration stage then exercises the **whole stack together** (real frontend + gateway + microservices + PostgreSQL). Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|
@@ -135,6 +143,7 @@ The pipeline runs **architecture → backend (JHipster) → database → backend
 | Frontend unit testing | `Frontend unit testing requirements satisfied.` |
 | Frontend integration testing | `Frontend integration testing requirements satisfied.` |
 | Frontend functional testing | `Frontend functional testing requirements satisfied.` |
+| System integration testing | `System integration testing requirements satisfied.` |
 | Production | `Final approval granted. System is production-ready.` |
 
 > Full diagrams (component architecture, sequence, loops, data flow, state machine) are in [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md).
@@ -164,7 +173,7 @@ In a Cursor chat, invoke Sunny and point it at your frontend:
 
 > Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
 
-Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the testing loops, and finish with a production audit — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the backend and frontend testing loops, run collective system integration tests across the whole stack, and finish with a production audit — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Run the documentation agent (standalone)
 

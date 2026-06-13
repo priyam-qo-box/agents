@@ -47,6 +47,9 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | Frontend Functional Test Agent | `frontend-functional-test-agent` | false |
 | Frontend Functional Test Verify Agent | `frontend-functional-test-verify-agent` | true |
 | Frontend Functional Test Fix Agent | `frontend-functional-test-fix-agent` | false |
+| System Integration Test Agent | `system-integration-test-agent` | false |
+| System Integration Test Verify Agent | `system-integration-test-verify-agent` | true |
+| System Integration Test Fix Agent | `system-integration-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
 | Production Fix Agent | `production-fix-agent` | false |
 
@@ -81,6 +84,9 @@ Frontend Input → Sunny
                    → [loop if not satisfied] frontend-integration-test-fix-agent → context-agent → frontend-integration-test-verify-agent
       Functional:  frontend-functional-test-verify-agent
                    → [loop if not satisfied] frontend-functional-test-fix-agent → context-agent → frontend-functional-test-verify-agent
+  → System integration testing (collective frontend + backend + PostgreSQL):
+      system-integration-test-agent → context-agent → system-integration-test-verify-agent
+      → [loop if not satisfied] system-integration-test-fix-agent → context-agent → system-integration-test-verify-agent
   → Production:
       production-standards-agent → context-agent
       → [loop if blocked] production-fix-agent → context-agent → production-standards-agent
@@ -208,10 +214,29 @@ For each layer L in [unit, integration, functional]:
     f. Launch context-agent to append frontend-{L}-test-fix-log.md
     g. goto repeat
 
-When the functional layer is satisfied (and unit + integration already satisfied) → proceed to Phase 4.
+When the functional layer is satisfied (and unit + integration already satisfied) → proceed to Phase 3C.
 ```
 
 Run Phase 3A to completion (all three backend layers satisfied) before starting Phase 3B.
+
+## Phase 3C — System integration testing loop (collective full-stack)
+
+Runs **after** both per-layer backend (3A) and frontend (3B) testing stages complete. Tests the **whole system together** — the real frontend driving the real gateway + microservices, persisting to a real **PostgreSQL** database — validating cross-tier data flows, auth propagation, and persistence.
+
+**Exit phrase (must match exactly):** `System integration testing requirements satisfied.`
+
+```
+1. Launch system-integration-test-agent with handoff (project-context.md critical journeys, architecture-summary.md, backend-summary.md, database-summary.md)
+2. Launch context-agent to persist system-integration-test-report.md
+repeat:
+  3. Launch system-integration-test-verify-agent (readonly) with context handoff
+  4. Launch context-agent to persist system-integration-test-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 4
+  6. If systemIntegrationTestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  7. Launch system-integration-test-fix-agent with the verify findings
+  8. Launch context-agent to append system-integration-test-fix-log.md
+  9. goto repeat
+```
 
 ## Phase 4 — Production standards loop
 

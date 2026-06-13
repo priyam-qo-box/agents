@@ -8,7 +8,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 0. System at a glance
 
-**31 orchestrated agents** (plus a standalone documentation agent), driven through **10 bounded verify/fix loops**.
+**34 orchestrated agents** (plus a standalone documentation agent), driven through **11 bounded verify/fix loops**.
 
 | Group | Count | Agents |
 |-------|-------|--------|
@@ -18,12 +18,13 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | Database | 3 | `database-agent`, `database-verify-agent` (readonly), `database-fix-agent` |
 | Backend tests (3 layers × gen/verify/fix) | 9 | `backend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
 | Frontend tests (3 layers × gen/verify/fix) | 9 | `frontend-{unit,integration,functional}-test-agent` + `-verify-agent` (readonly) + `-fix-agent` |
+| System integration tests (collective) | 3 | `system-integration-test-agent`, `system-integration-test-verify-agent` (readonly), `system-integration-test-fix-agent` |
 | Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
 | Standalone (not orchestrated) | 1 | `documentation` |
 
-- **10 verify/fix loops:** architecture + backend code + database + 3 backend test layers + 3 frontend test layers + production.
-- **10 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, the 6 per-layer test-verify agents, and `production-standards-agent`.
-- **Pipeline order:** architecture → backend (JHipster) → database → backend tests → frontend tests → production.
+- **11 verify/fix loops:** architecture + backend code + database + 3 backend test layers + 3 frontend test layers + system integration + production.
+- **11 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, and `production-standards-agent`.
+- **Pipeline order:** architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → production.
 - **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
 - **One writer of shared memory:** `context-agent` owns `.sunny/context/`.
 
@@ -31,7 +32,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 1. System architecture (pipeline order)
 
-The agents run as an **ordered pipeline**: design the architecture, generate the backend, verify and fix it, harden the database, then generate and verify tests (backend, then frontend), then the final production audit. The Driver (main chat agent) launches each stage via the Task tool, and the Context Agent persists output between every stage. Read top to bottom — generation always precedes verification.
+The agents run as an **ordered pipeline**: design the architecture, generate the backend, verify and fix it, harden the database, then generate and verify tests (backend, then frontend), then collective system integration tests (frontend + backend + database together), then the final production audit. The Driver (main chat agent) launches each stage via the Task tool, and the Context Agent persists output between every stage. Read top to bottom — generation always precedes verification.
 
 ```mermaid
 flowchart TB
@@ -45,8 +46,9 @@ flowchart TB
         SD["Stage 4 - Database hardening<br/>database-agent<br/>verify: database-verify-agent (readonly)<br/>fix: database-fix-agent"]
         S3["Stage 5 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
         S4["Stage 6 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
-        S5["Stage 7 - Production (readonly audit)<br/>production-standards-agent<br/>fix: production-fix-agent"]
-        S0 --> S1 --> S2 --> SD --> S3 --> S4 --> S5
+        SI["Stage 7 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
+        S5["Stage 8 - Production (readonly audit)<br/>production-standards-agent<br/>fix: production-fix-agent"]
+        S0 --> S1 --> S2 --> SD --> S3 --> S4 --> SI --> S5
     end
 
     Driver -->|launches each stage in order| pipeline
@@ -69,7 +71,7 @@ Each agent with its key points, grouped by stage. Readonly agents only audit and
 flowchart TB
     subgraph orch [Orchestration and Memory]
         direction LR
-        DRV["Sunny / Driver<br/>• Orchestrates all 8 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
+        DRV["Sunny / Driver<br/>• Orchestrates all 11 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
         CTX["context-agent<br/>• Sole writer of .sunny/context<br/>• Structured summaries + state.json<br/>• Trims handoffs to next agent<br/>• Tracks phase + iteration counters"]
     end
 
@@ -158,14 +160,23 @@ flowchart TB
         s4u --> s4i --> s4f
     end
 
-    subgraph s5 [Stage 5 - Production]
+    subgraph sSi [Stage 7 - System integration testing - collective full-stack]
+        direction LR
+        SI["system-integration-test-agent<br/>• Runs whole stack together<br/>• Real frontend + gateway + services + PostgreSQL<br/>• Cross-tier journeys + auth propagation"]
+        SIV["system-integration-test-verify-agent - readonly<br/>• Full-stack journey coverage on real stack<br/>• UI + API + DB persistence asserted<br/>• Exit: System integration testing requirements satisfied."]
+        SIF["system-integration-test-fix-agent<br/>• Closes cross-tier journey gaps"]
+        SI --> SIV
+        SIV -->|gaps| SIF --> SIV
+    end
+
+    subgraph s5 [Stage 8 - Production]
         direction LR
         PS["production-standards-agent - readonly<br/>• Security + readiness audit<br/>• Industry standards + performance<br/>• Requires prior approved verdicts<br/>• Exit: Final approval granted. System is production-ready."]
         PF["production-fix-agent<br/>• Remediates PR findings<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
         PS -->|blocked| PF --> PS
     end
 
-    orch --> sArch --> s12 --> sDb --> s3 --> s4 --> s5
+    orch --> sArch --> s12 --> sDb --> s3 --> s4 --> sSi --> s5
 ```
 
 ---
@@ -216,7 +227,16 @@ flowchart TD
     FGen --> FLoop["Frontend per-layer verify/fix loops<br/>(see Section 5)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
     FLoop --> FSat{"all 3 frontend layers<br/>satisfied?"}
     FSat -->|No, any layer hit cap 5| Blocked
-    FSat -->|Yes| Prod[production-standards-agent]
+    FSat -->|Yes| SIGen[system-integration-test-agent]
+
+    SIGen --> PSI1["context-agent<br/>system-integration-test-report.md"]
+    PSI1 --> SIVer[system-integration-test-verify-agent]
+    SIVer --> PSI2["context-agent<br/>system-integration-test-verify-report.md"]
+    PSI2 --> SISat{"lastVerdict ==<br/>'System integration testing<br/>requirements satisfied.'?"}
+    SISat -->|No| CapSI{"systemIntegrationTestVerifyIterations<br/>>= 5?"}
+    CapSI -->|No| SIFix[system-integration-test-fix-agent] --> PSI3["context-agent<br/>system-integration-test-fix-log.md"] --> SIVer
+    CapSI -->|Yes| Blocked
+    SISat -->|Yes| Prod[production-standards-agent]
     Prod --> P10["context-agent<br/>production-report.md"]
     P10 --> PSat{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
     PSat -->|No| CapP{"productionVerifyIterations<br/>>= 5?"}
@@ -330,7 +350,24 @@ flowchart TB
     FB -->|No| FD{frontendFunctionalTestVerifyIterations >= 5?}
     FD -->|Yes| Stop
     FD -->|No| FE[frontend-functional-test-fix-agent] --> FF["context-agent<br/>frontend-functional-test-fix-log.md"] --> FA
-    FB -->|Yes| Exit([Exit to Production])
+    FB -->|Yes| Exit([Exit to System integration tests])
+```
+
+## 5.5 System integration testing loop (detail)
+
+After both backend (§4) and frontend (§5) testing stages are satisfied, the collective full-stack loop runs the **whole system together** — the real frontend driving the real gateway + microservices, persisting to a real **PostgreSQL** database — to validate cross-tier journeys, auth propagation, and persistence. Generate once, then a single verify/fix loop.
+
+```mermaid
+flowchart LR
+    G[system-integration-test-agent] --> A[system-integration-test-verify-agent]
+    A --> B["context-agent<br/>system-integration-test-verify-report.md"]
+    B --> C{"System integration testing<br/>requirements satisfied?"}
+    C -->|Yes| Exit([Exit to Production])
+    C -->|No| D{systemIntegrationTestVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Blocked - escalate])
+    D -->|No| E[system-integration-test-fix-agent]
+    E --> F["context-agent<br/>system-integration-test-fix-log.md"]
+    F --> A
 ```
 
 ## 6. Production loop (detail)
@@ -370,12 +407,12 @@ flowchart TD
 
 1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
 2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
-3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `productionVerifyIterations`).
+3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; `productionVerifyIterations`).
 4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
 
-### Same mechanism across all ten loops
+### Same mechanism across all eleven loops
 
 | Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
 |------|----------------------|-----------|---------|-------------|
@@ -388,6 +425,7 @@ flowchart TD
 | Frontend unit tests | `frontend-unit-test-verify-agent` | `frontend-unit-test-fix-agent` | `frontendUnitTestVerifyIterations` | `Frontend unit testing requirements satisfied.` |
 | Frontend integration tests | `frontend-integration-test-verify-agent` | `frontend-integration-test-fix-agent` | `frontendIntegrationTestVerifyIterations` | `Frontend integration testing requirements satisfied.` |
 | Frontend functional tests | `frontend-functional-test-verify-agent` | `frontend-functional-test-fix-agent` | `frontendFunctionalTestVerifyIterations` | `Frontend functional testing requirements satisfied.` |
+| System integration tests | `system-integration-test-verify-agent` | `system-integration-test-fix-agent` | `systemIntegrationTestVerifyIterations` | `System integration testing requirements satisfied.` |
 | Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
 
 > Each side's three generation agents (unit/integration/functional) run once at the start; then each layer has its own verify/fix loop. On failure the layer's fix agent adds or repairs that layer's tests, then the layer re-verifies — the generators are not re-run.
@@ -411,6 +449,8 @@ sequenceDiagram
     participant BTV as Backend Layer Verifiers
     participant FT as Frontend Test Gen+Fix (per layer)
     participant FTV as Frontend Layer Verifiers
+    participant SI as System Integration Gen+Fix
+    participant SIV as System Integration Verify
     participant P as Production Standards
     participant PF as Production Fix
 
@@ -511,7 +551,26 @@ sequenceDiagram
     end
 
     rect rgb(120,120,120)
-    note right of S: Stage 7 - Production (max 5)
+    note right of S: Stage 7 - System integration tests (collective, max 5)
+    S->>SI: Generate full-stack tests (frontend + backend + PostgreSQL)
+    SI-->>S: tests + run result
+    S->>C: Persist system-integration-test-report.md
+    loop until "System integration testing requirements satisfied"
+        S->>SIV: Verify cross-tier journeys on real stack
+        SIV-->>S: report + verdict
+        S->>C: Persist system-integration-test-verify-report.md
+        alt Not satisfied and iter < 5
+            S->>SI: system-integration-test-fix-agent closes gaps
+            SI-->>S: fix summary
+            S->>C: Persist system-integration-test-fix-log.md
+        else Satisfied or max iterations
+            note over S: break or blocked
+        end
+    end
+    end
+
+    rect rgb(120,120,120)
+    note right of S: Stage 8 - Production (max 5)
     loop until "Final approval granted"
         S->>P: Final audit
         P-->>S: production report + verdict
@@ -554,6 +613,9 @@ flowchart LR
         FTR[frontend-test-report.md]
         FTV6["frontend-{unit,integration,functional}-<br/>test-verify-report.md (x3)"]
         FTF6["frontend-{unit,integration,functional}-<br/>test-fix-log.md (x3)"]
+        SIR[system-integration-test-report.md]
+        SIVR[system-integration-test-verify-report.md]
+        SIFL[system-integration-test-fix-log.md]
         PR[production-report.md]
         PFL[production-fix-log.md]
         ST[state.json]
@@ -601,8 +663,21 @@ flowchart LR
     FTV6 --> FTFIX["frontend layer fix agents x3"]
     FTR --> FTFIX
     FTF6 --> FTFIX
+
+    PC --> SIT[system-integration-test-agent]
+    AS --> SIT
+    BS --> SIT
+    DS --> SIT
+    SIVR --> SIT
+    SIR --> SIV2[system-integration-verify]
+    PC --> SIV2
+    SIVR --> SIF2[system-integration-fix]
+    SIR --> SIF2
+    SIFL --> SIF2
+
     BTV6 --> PROD[production-standards]
     FTV6 --> PROD
+    SIVR --> PROD
     BS --> PROD
     PR --> PROD
     PR --> PFIX[production-fix]
@@ -641,7 +716,10 @@ stateDiagram-v2
     testing_backend --> testing_frontend: all 3 backend layers satisfied
 
     testing_frontend --> testing_frontend: layer not satisfied (fix and re-verify)
-    testing_frontend --> production: all 3 frontend layers satisfied
+    testing_frontend --> testing_system: all 3 frontend layers satisfied
+
+    testing_system --> testing_system: not satisfied (fix and re-verify)
+    testing_system --> production: System integration testing satisfied
 
     production --> production_fix: blocked (findings)
     production_fix --> production: re-audit
@@ -653,6 +731,7 @@ stateDiagram-v2
     database_verify --> blocked: max iterations
     testing_backend --> blocked: max iterations
     testing_frontend --> blocked: max iterations
+    testing_system --> blocked: max iterations
     production --> blocked: max iterations
     blocked --> [*]: escalate to user
 ```
@@ -668,12 +747,13 @@ stateDiagram-v2
 | **Driver** | Main chat agent that follows the playbook and launches sub-agents via the Task tool |
 | **Solid arrow** | Control flow / Task launch |
 | **Dotted arrow** | Data flow (persist / handoff) |
-| **readonly agent** | Audits and reports only; makes no code changes (architecture-verify, jhipster-verify, database-verify, the six per-layer test-verify agents, production-standards) |
+| **readonly agent** | Audits and reports only; makes no code changes (architecture-verify, jhipster-verify, database-verify, the six per-layer test-verify agents, system-integration-test-verify, production-standards) |
 | **Exit phrase** | Exact string in `state.json.lastVerdict` that breaks a loop |
 | **Architecture exit** | `Architecture approved.` |
 | **Backend code exit** | `No issues found. Backend approved.` |
 | **Database exit** | `Database approved.` |
 | **Backend test exits** | `Backend unit testing requirements satisfied.` / `Backend integration testing requirements satisfied.` / `Backend functional testing requirements satisfied.` |
 | **Frontend test exits** | `Frontend unit testing requirements satisfied.` / `Frontend integration testing requirements satisfied.` / `Frontend functional testing requirements satisfied.` |
+| **System integration exit** | `System integration testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
+| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |

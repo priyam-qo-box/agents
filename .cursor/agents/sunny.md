@@ -46,6 +46,9 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Frontend functional | frontend-functional-test-agent | E2E user journeys (Playwright) |
 | Frontend functional | frontend-functional-test-verify-agent | Verify frontend E2E journey coverage |
 | Frontend functional | frontend-functional-test-fix-agent | Close frontend E2E gaps |
+| System integration | system-integration-test-agent | Collective full-stack tests (frontend + backend + PostgreSQL together) |
+| System integration | system-integration-test-verify-agent | Verify cross-tier journey coverage on the real running stack |
+| System integration | system-integration-test-fix-agent | Close collective full-stack testing gaps |
 | Production audit | production-standards-agent | Final security and readiness audit |
 | Production repair | production-fix-agent | Remediate production audit findings |
 
@@ -72,6 +75,9 @@ Frontend Input
         frontend-unit/integration/functional-test-agent → context-agent
         per layer L: frontend-{L}-test-verify-agent
           → [loop] frontend-{L}-test-fix-agent → context-agent → frontend-{L}-test-verify-agent
+    → System integration testing (collective frontend + backend + PostgreSQL):
+        system-integration-test-agent → context-agent → system-integration-test-verify-agent
+        → [loop] system-integration-test-fix-agent → context-agent → system-integration-test-verify-agent
     → Production:
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
@@ -89,14 +95,15 @@ Frontend Input
 - **Frontend unit tests:** `Frontend unit testing requirements satisfied.`
 - **Frontend integration tests:** `Frontend integration testing requirements satisfied.`
 - **Frontend functional tests:** `Frontend functional testing requirements satisfied.`
+- **System integration tests:** `System integration testing requirements satisfied.`
 - **Production approved:** `Final approval granted. System is production-ready.`
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); and `productionVerifyIterations`.
-- Run stages in order: architecture → backend → database → backend testing → frontend testing → production.
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; and `productionVerifyIterations`.
+- Run stages in order: architecture → backend → database → backend testing → frontend testing → system integration testing → production.
 - Within a side, verify/fix layers in order: unit → integration → functional.
-- Run backend testing to satisfaction before starting frontend testing.
+- Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
 
 ## Non-negotiables you enforce
