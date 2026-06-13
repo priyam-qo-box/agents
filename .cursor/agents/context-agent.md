@@ -274,7 +274,14 @@ Downstream agents (Vikram, Naveen, the test stages) **consume** these env vars a
 **You are the secrets registrar (key names only).** The secret set is **not frozen** — any later stage may append a new env var to `.env` (see the "Secrets protocol" in the orchestrator rule). When an agent reports it added a key:
 
 - Record the **key name** in `state.json.envKeys` (e.g. `["POSTGRES_PASSWORD","JHIPSTER_...","REDIS_PASSWORD"]`) — **names only, never values**. At intake, seed `envKeys` with the keys you generated.
-- If an agent reports it needs an **external** credential it cannot generate (a provider API key/OAuth client secret), add a `blockers[]` entry naming the exact key and where to obtain it, set `phase: "blocked"` **only if** the agent says that stage cannot proceed without it, and surface it in `progress.json`. Internal secrets the agent already appended are **not** blockers — just register the key name.
+- If an agent reports it needs an **external** credential it cannot generate (a provider API key/OAuth client secret), add a **structured** `blockers[]` entry so the dashboard can show it as an **"Action required"** item the user can read and act on:
+  ```json
+  { "kind": "needs-input", "key": "STRIPE_API_KEY", "stage": "backend",
+    "message": "Payment integration needs a live Stripe secret key.",
+    "howTo": "Add STRIPE_API_KEY=<your key> to .env on the server, then re-run the backend stage." }
+  ```
+  Copy these blockers verbatim into `progress.json.blockers` so `agentprogress.html` renders them. Set `phase: "blocked"` **only if** the agent says that stage cannot proceed without it. Internal secrets the agent already appended are **not** blockers — just register the key name in `envKeys`.
+- The dashboard is **read-only** — the user supplies the value by editing `.env` on the server (or telling Sunny), never by typing into the page. Once provided, clear the blocker on the next capture.
 
 ## Required workflow
 

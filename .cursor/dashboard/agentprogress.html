@@ -88,6 +88,15 @@
     .blockers ul { margin: 0; padding: 12px 16px 14px 34px; }
     .blockers li { margin: 4px 0; }
 
+    .action { margin-top: 18px; border-color: color-mix(in srgb, var(--active) 55%, var(--border)); background: color-mix(in srgb, var(--active) 8%, var(--panel)); }
+    .action h2 { color: var(--active); }
+    .action .hint { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+    .action .item { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; background: var(--bg); }
+    .action .item .k { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--active); }
+    .action .item .where { color: var(--muted); font-size: 12px; }
+    .action .item .msg { margin: 4px 0; }
+    .action code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: color-mix(in srgb, var(--active) 14%, transparent); padding: 1px 6px; border-radius: 6px; }
+
     footer { margin-top: 18px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
     .err { color: var(--blocked); }
     .muted { color: var(--muted); }
@@ -127,6 +136,12 @@
         <tr><td colspan="5" class="muted" style="padding:18px 16px">Waiting for the first agent to report&hellip;</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="panel action" id="actionPanel" style="display:none">
+    <h2>&#9888; Action required &mdash; details needed from you</h2>
+    <div class="hint">Add each value to the project's <code>.env</code> on the server (never type secrets into this page), then the stage re-runs. This page is read-only.</div>
+    <div id="actionList"></div>
   </div>
 
   <div class="panel blockers" id="blockersPanel" style="display:none">
@@ -237,11 +252,32 @@
         $("stageBody").innerHTML = rows;
       }
 
-      // Blockers
+      // Blockers — split "needs-input" (asks for details) from generic blockers
       var blockers = Array.isArray(data.blockers) ? data.blockers : [];
-      if (blockers.length) {
+      var asks = [], errs = [];
+      blockers.forEach(function (b) {
+        if (b && typeof b === "object" && (b.kind === "needs-input" || b.key)) asks.push(b);
+        else errs.push(b);
+      });
+
+      if (asks.length) {
+        $("actionPanel").style.display = "";
+        $("actionList").innerHTML = asks.map(function (b) {
+          var key = b.key ? '<div class="k">' + esc(b.key) + "</div>" : "";
+          var where = b.stage ? '<span class="where"> &middot; needed for ' + esc(b.stage) + "</span>" : "";
+          var msg = b.message ? '<div class="msg">' + esc(b.message) + "</div>" : "";
+          var how = b.howTo
+            ? '<div class="where">' + esc(b.howTo) + "</div>"
+            : (b.key ? '<div class="where">Add <code>' + esc(b.key) + '=&lt;your value&gt;</code> to <code>.env</code>.</div>' : "");
+          return '<div class="item">' + key + where + msg + how + "</div>";
+        }).join("");
+      } else {
+        $("actionPanel").style.display = "none";
+      }
+
+      if (errs.length) {
         $("blockersPanel").style.display = "";
-        $("blockersList").innerHTML = blockers.map(function (b) {
+        $("blockersList").innerHTML = errs.map(function (b) {
           return "<li>" + esc(typeof b === "string" ? b : (b.message || JSON.stringify(b))) + "</li>";
         }).join("");
       } else {
