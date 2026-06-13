@@ -50,6 +50,21 @@ When the user invokes **Sunny** (e.g. "Sunny, build the backend for this fronten
 | System Integration Test Agent | `system-integration-test-agent` | false |
 | System Integration Test Verify Agent | `system-integration-test-verify-agent` | true |
 | System Integration Test Fix Agent | `system-integration-test-fix-agent` | false |
+| Swagger Agent | `swagger-agent` | false |
+| Swagger Verify Agent | `swagger-verify-agent` | true |
+| Swagger Fix Agent | `swagger-fix-agent` | false |
+| Javadoc Agent | `javadoc-agent` | false |
+| Javadoc Verify Agent | `javadoc-verify-agent` | true |
+| Javadoc Fix Agent | `javadoc-fix-agent` | false |
+| API Collection Agent | `api-collection-agent` | false |
+| API Collection Verify Agent | `api-collection-verify-agent` | true |
+| API Collection Fix Agent | `api-collection-fix-agent` | false |
+| API Test Agent | `api-test-agent` | false |
+| API Test Verify Agent | `api-test-verify-agent` | true |
+| API Test Fix Agent | `api-test-fix-agent` | false |
+| API Performance Test Agent | `api-performance-test-agent` | false |
+| API Performance Test Verify Agent | `api-performance-test-verify-agent` | true |
+| API Performance Test Fix Agent | `api-performance-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
 | Production Fix Agent | `production-fix-agent` | false |
 
@@ -87,6 +102,21 @@ Frontend Input → Sunny
   → System integration testing (collective frontend + backend + PostgreSQL):
       system-integration-test-agent → context-agent → system-integration-test-verify-agent
       → [loop if not satisfied] system-integration-test-fix-agent → context-agent → system-integration-test-verify-agent
+  → Swagger / OpenAPI docs:
+      swagger-agent → context-agent → swagger-verify-agent
+      → [loop if not satisfied] swagger-fix-agent → context-agent → swagger-verify-agent
+  → Javadoc:
+      javadoc-agent → context-agent → javadoc-verify-agent
+      → [loop if not satisfied] javadoc-fix-agent → context-agent → javadoc-verify-agent
+  → API collection (Postman):
+      api-collection-agent → context-agent → api-collection-verify-agent
+      → [loop if not satisfied] api-collection-fix-agent → context-agent → api-collection-verify-agent
+  → API tests (every endpoint returns correct status):
+      api-test-agent → context-agent → api-test-verify-agent
+      → [loop if not satisfied] api-test-fix-agent → context-agent → api-test-verify-agent
+  → API performance (1/10/20/30 concurrency):
+      api-performance-test-agent → context-agent → api-performance-test-verify-agent
+      → [loop if not satisfied] api-performance-test-fix-agent → context-agent → api-performance-test-verify-agent
   → Production:
       production-standards-agent → context-agent
       → [loop if blocked] production-fix-agent → context-agent → production-standards-agent
@@ -238,14 +268,48 @@ repeat:
   9. goto repeat
 ```
 
+## Phases 3D–3H — Documentation & API stages
+
+After system integration testing, run **five generate → verify → fix loops in order**: Swagger → Javadoc → API collection → API tests → API performance. Each follows the same pattern (generate once, then verify/fix until the exact exit phrase), with its own counter, capped at 5.
+
+| # | Stage | Generate | Verify (readonly) | Fix | Counter | Exit phrase |
+|---|-------|----------|-------------------|-----|---------|-------------|
+| 3D | Swagger/OpenAPI | `swagger-agent` | `swagger-verify-agent` | `swagger-fix-agent` | `swaggerVerifyIterations` | `Swagger documentation requirements satisfied.` |
+| 3E | Javadoc | `javadoc-agent` | `javadoc-verify-agent` | `javadoc-fix-agent` | `javadocVerifyIterations` | `Javadoc documentation requirements satisfied.` |
+| 3F | API collection | `api-collection-agent` | `api-collection-verify-agent` | `api-collection-fix-agent` | `apiCollectionVerifyIterations` | `API collection requirements satisfied.` |
+| 3G | API tests | `api-test-agent` | `api-test-verify-agent` | `api-test-fix-agent` | `apiTestVerifyIterations` | `API testing requirements satisfied.` |
+| 3H | API performance | `api-performance-test-agent` | `api-performance-test-verify-agent` | `api-performance-test-fix-agent` | `apiPerformanceTestVerifyIterations` | `API performance testing requirements satisfied.` |
+
+```
+For each stage S in [swagger, javadoc, api-collection, api-test, api-performance]:
+  1. Launch S generation agent with handoff
+  2. Launch context-agent to persist {S}-report.md
+  repeat:
+    3. Launch S verify agent (readonly) with context handoff
+    4. Launch context-agent to persist {S}-verify-report.md
+    5. Read state.json — if lastVerdict == this stage's exit phrase → break to next stage
+    6. If {S}VerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+    7. Launch S fix agent with the verify findings
+    8. Launch context-agent to append {S}-fix-log.md
+    9. goto repeat
+
+Notes:
+- Swagger runs first because its exported OpenAPI spec feeds the API collection and API tests.
+- API tests must assert each endpoint returns its correct/appropriate status (200/201/204 or 4xx/5xx).
+- API performance must run every key scenario at 1, 10, 20, and 30 concurrent requests and meet thresholds.
+When all five stages are satisfied → proceed to Phase 4.
+```
+
 ## Phase 4 — Production standards loop
+
+The production agent first runs a **completeness audit of every prior stage** (do's and don'ts: each stage's exact verdict present + artifacts on disk), then audits security/readiness/standards/performance, and produces **one comprehensive final report**. Give it the **full** context handoff (every summary, verify report, and stage report).
 
 **Exit phrase (must match exactly):** `Final approval granted. System is production-ready.`
 
 ```
 repeat:
-  1. Launch production-standards-agent (readonly) with full context handoff
-  2. Launch context-agent to persist production-report.md
+  1. Launch production-standards-agent (readonly) with FULL context handoff (all files)
+  2. Launch context-agent to persist production-report.md (comprehensive final report)
   3. Read state.json — if lastVerdict == exit phrase → break to Final Approval
   4. If productionVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
   5. Launch production-fix-agent with the production-report findings

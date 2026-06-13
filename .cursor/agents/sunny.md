@@ -49,7 +49,22 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | System integration | system-integration-test-agent | Collective full-stack tests (frontend + backend + PostgreSQL together) |
 | System integration | system-integration-test-verify-agent | Verify cross-tier journey coverage on the real running stack |
 | System integration | system-integration-test-fix-agent | Close collective full-stack testing gaps |
-| Production audit | production-standards-agent | Final security and readiness audit |
+| Swagger | swagger-agent | OpenAPI/Swagger docs for every endpoint (springdoc) |
+| Swagger | swagger-verify-agent | Verify spec completeness + accuracy |
+| Swagger | swagger-fix-agent | Close Swagger documentation gaps |
+| Javadoc | javadoc-agent | Javadoc for every public Java API; build with failOnWarnings |
+| Javadoc | javadoc-verify-agent | Verify Javadoc coverage + clean build |
+| Javadoc | javadoc-fix-agent | Close Javadoc gaps |
+| API collection | api-collection-agent | Postman collection + environments from the spec (Newman CI) |
+| API collection | api-collection-verify-agent | Verify collection coverage + green Newman run |
+| API collection | api-collection-fix-agent | Close API collection gaps |
+| API tests | api-test-agent | Exercise every endpoint; assert correct/appropriate status |
+| API tests | api-test-verify-agent | Verify every endpoint returns its correct status |
+| API tests | api-test-fix-agent | Fix wrong-status endpoints + missing assertions |
+| API performance | api-performance-test-agent | Load test at 1/10/20/30 concurrency; capture metrics |
+| API performance | api-performance-test-verify-agent | Verify all levels covered + thresholds met |
+| API performance | api-performance-test-fix-agent | Remediate performance breaches |
+| Production audit | production-standards-agent | Audit all prior outputs + final security/readiness audit + comprehensive report |
 | Production repair | production-fix-agent | Remediate production audit findings |
 
 ## Workflow you enforce
@@ -78,7 +93,13 @@ Frontend Input
     → System integration testing (collective frontend + backend + PostgreSQL):
         system-integration-test-agent → context-agent → system-integration-test-verify-agent
         → [loop] system-integration-test-fix-agent → context-agent → system-integration-test-verify-agent
-    → Production:
+    → Documentation & API stages (each generate, then verify/fix loop, in order):
+        Swagger:         swagger-agent → context-agent → swagger-verify-agent → [loop] swagger-fix-agent
+        Javadoc:         javadoc-agent → context-agent → javadoc-verify-agent → [loop] javadoc-fix-agent
+        API collection:  api-collection-agent → context-agent → api-collection-verify-agent → [loop] api-collection-fix-agent
+        API tests:       api-test-agent → context-agent → api-test-verify-agent → [loop] api-test-fix-agent
+        API performance: api-performance-test-agent → context-agent → api-performance-test-verify-agent → [loop] api-performance-test-fix-agent
+    → Production (audits all prior outputs + comprehensive final report):
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
     → Final Approval
@@ -96,14 +117,20 @@ Frontend Input
 - **Frontend integration tests:** `Frontend integration testing requirements satisfied.`
 - **Frontend functional tests:** `Frontend functional testing requirements satisfied.`
 - **System integration tests:** `System integration testing requirements satisfied.`
+- **Swagger docs:** `Swagger documentation requirements satisfied.`
+- **Javadoc docs:** `Javadoc documentation requirements satisfied.`
+- **API collection:** `API collection requirements satisfied.`
+- **API tests:** `API testing requirements satisfied.`
+- **API performance:** `API performance testing requirements satisfied.`
 - **Production approved:** `Final approval granted. System is production-ready.`
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; and `productionVerifyIterations`.
-- Run stages in order: architecture → backend → database → backend testing → frontend testing → system integration testing → production.
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`.
+- Run stages in order: architecture → backend → database → backend testing → frontend testing → system integration testing → swagger → javadoc → API collection → API tests → API performance → production.
 - Within a side, verify/fix layers in order: unit → integration → functional.
-- Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied.
+- Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied. Run the documentation/API stages in order (Swagger first — its spec feeds the API collection and API tests).
+- The production agent must confirm **every** prior stage is complete (do's and don'ts) before its own audit, and produces the comprehensive final report.
 - On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
 
 ## Non-negotiables you enforce

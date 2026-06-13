@@ -55,8 +55,23 @@ These constraints are enforced by every relevant agent:
 | 30 | **System Integration Test Agent** | `system-integration-test-agent.md` | Collective full-stack tests (frontend + backend + PostgreSQL together) | No |
 | 31 | **System Integration Test Verify Agent** | `system-integration-test-verify-agent.md` | Verifies cross-tier journey coverage on the real running stack | Yes |
 | 32 | **System Integration Test Fix Agent** | `system-integration-test-fix-agent.md` | Closes collective full-stack testing gaps | No |
-| 33 | **Production Standards Agent** | `production-standards-agent.md` | Final security/readiness/performance audit | Yes |
-| 34 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
+| 33 | **Swagger Agent** | `swagger-agent.md` | OpenAPI/Swagger docs for every endpoint (springdoc) | No |
+| 34 | **Swagger Verify Agent** | `swagger-verify-agent.md` | Verifies spec completeness and accuracy | Yes |
+| 35 | **Swagger Fix Agent** | `swagger-fix-agent.md` | Closes Swagger documentation gaps | No |
+| 36 | **Javadoc Agent** | `javadoc-agent.md` | Javadoc for every public Java API; failOnWarnings build | No |
+| 37 | **Javadoc Verify Agent** | `javadoc-verify-agent.md` | Verifies Javadoc coverage and clean build | Yes |
+| 38 | **Javadoc Fix Agent** | `javadoc-fix-agent.md` | Closes Javadoc gaps | No |
+| 39 | **API Collection Agent** | `api-collection-agent.md` | Postman collection + environments from the spec (Newman CI) | No |
+| 40 | **API Collection Verify Agent** | `api-collection-verify-agent.md` | Verifies collection coverage and green Newman run | Yes |
+| 41 | **API Collection Fix Agent** | `api-collection-fix-agent.md` | Closes API collection gaps | No |
+| 42 | **API Test Agent** | `api-test-agent.md` | Exercises every endpoint; asserts correct/appropriate status | No |
+| 43 | **API Test Verify Agent** | `api-test-verify-agent.md` | Verifies every endpoint returns its correct status | Yes |
+| 44 | **API Test Fix Agent** | `api-test-fix-agent.md` | Fixes wrong-status endpoints + missing assertions | No |
+| 45 | **API Performance Test Agent** | `api-performance-test-agent.md` | Load test at 1/10/20/30 concurrency; capture metrics | No |
+| 46 | **API Performance Test Verify Agent** | `api-performance-test-verify-agent.md` | Verifies all levels covered + thresholds met | Yes |
+| 47 | **API Performance Test Fix Agent** | `api-performance-test-fix-agent.md` | Remediates performance breaches | No |
+| 48 | **Production Standards Agent** | `production-standards-agent.md` | Audits all prior outputs + final security/readiness audit + comprehensive report | Yes |
+| 49 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
 
 ---
 
@@ -102,8 +117,12 @@ flowchart TD
         SIGEN["system-integration-test-agent<br/>(whole stack: frontend + backend + PostgreSQL)"]
         SILOOP["system-integration-test-verify-agent<br/>-> [loop if gaps] system-integration-test-fix-agent"]
     end
-    subgraph prod [Stage 8 - Production Loop]
-        PROD[Production Standards Agent]
+    subgraph docapi [Stages 8-12 - Documentation & API loops]
+        DGEN["Swagger -> Javadoc -> API collection -> API tests -> API performance"]
+        DLOOP["each stage: {stage}-agent -> {stage}-verify-agent<br/>-> [loop if gaps] {stage}-fix-agent"]
+    end
+    subgraph prod [Stage 13 - Production Loop]
+        PROD["Production Standards Agent<br/>(audits ALL prior outputs + final report)"]
         PFIX[Production Fix Agent]
     end
 
@@ -125,7 +144,9 @@ flowchart TD
     FGEN --> FLAYERS
     FLAYERS -->|"all 3 frontend layers satisfied"| SIGEN
     SIGEN --> SILOOP
-    SILOOP -->|"System integration testing requirements satisfied."| PROD
+    SILOOP -->|"System integration testing requirements satisfied."| DGEN
+    DGEN --> DLOOP
+    DLOOP -->|"all 5 doc/API stages satisfied"| PROD
     PROD -->|"blocked"| PFIX
     PFIX --> PROD
     PROD -->|"Final approval granted."| Final(["Final Approval<br/>System is production-ready."])
@@ -141,6 +162,8 @@ flowchart TD
     FLAYERS -.persist.-> Ctx
     SIGEN -.persist.-> Ctx
     SILOOP -.persist.-> Ctx
+    DGEN -.persist.-> Ctx
+    DLOOP -.persist.-> Ctx
     PROD -.persist.-> Ctx
     PFIX -.persist.-> Ctx
 ```
@@ -165,6 +188,8 @@ sequenceDiagram
     participant FTV as Frontend Layer Verifiers
     participant SI as System Integration Gen+Fix
     participant SIV as System Integration Verify
+    participant DA as Doc/API Gen+Fix (5 stages)
+    participant DAV as Doc/API Verifiers (5 stages)
     participant P as Production Standards
     participant PF as Production Fix
 
@@ -257,7 +282,23 @@ sequenceDiagram
         end
     end
 
-    Note over S,PF: Stage 8 - Production loop (max 5)
+    Note over S,DAV: Stages 8-12 - Documentation & API (in order, max 5 each)
+    loop For each stage: swagger -> javadoc -> api-collection -> api-test -> api-performance
+        S->>DA: Generate stage artifacts
+        S->>C: Persist {stage}-report.md
+        loop Until this stage's exit phrase
+            S->>DAV: Verify this stage
+            S->>C: Persist {stage}-verify-report.md
+            alt Not satisfied
+                S->>DA: {stage}-fix-agent closes gaps
+                S->>C: Persist {stage}-fix-log.md
+            else {stage} requirements satisfied.
+                Note over S: Next stage
+            end
+        end
+    end
+
+    Note over S,PF: Stage 13 - Production loop (audits ALL prior outputs, max 5)
     loop Until "Final approval granted" or max iterations
         S->>P: Final audit
         S->>C: Persist production-report.md
@@ -289,9 +330,14 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | Frontend integration testing | `Frontend integration testing requirements satisfied.` | Frontend Integration Test Verify Agent |
 | Frontend functional testing | `Frontend functional testing requirements satisfied.` | Frontend Functional Test Verify Agent |
 | System integration testing | `System integration testing requirements satisfied.` | System Integration Test Verify Agent |
+| Swagger / OpenAPI | `Swagger documentation requirements satisfied.` | Swagger Verify Agent |
+| Javadoc | `Javadoc documentation requirements satisfied.` | Javadoc Verify Agent |
+| API collection | `API collection requirements satisfied.` | API Collection Verify Agent |
+| API tests | `API testing requirements satisfied.` | API Test Verify Agent |
+| API performance | `API performance testing requirements satisfied.` | API Performance Test Verify Agent |
 | Production | `Final approval granted. System is production-ready.` | Production Standards Agent |
 
-Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; and `productionVerifyIterations`. Stages run in order (architecture → backend → database → backend tests → frontend tests → system integration tests → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
+Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`. Stages run in order (architecture → backend → database → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
 
 ---
 
@@ -328,7 +374,12 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 ├── system-integration-test-report.md          # Collective full-stack test generation output
 ├── system-integration-test-verify-report.md   # System integration verify findings + verdict
 ├── system-integration-test-fix-log.md         # History of system integration fix cycles
-├── production-report.md           # Latest production audit findings + verdict
+├── swagger-report.md / -verify-report.md / -fix-log.md          # Swagger/OpenAPI stage
+├── javadoc-report.md / -verify-report.md / -fix-log.md          # Javadoc stage
+├── api-collection-report.md / -verify-report.md / -fix-log.md   # Postman collection stage
+├── api-test-report.md / -verify-report.md / -fix-log.md         # API status tests stage
+├── api-performance-report.md / -verify-report.md / -fix-log.md  # API performance stage
+├── production-report.md           # Comprehensive final report (audits all prior stages)
 ├── production-fix-log.md          # History of production remediation cycles
 └── state.json                     # phase, loop counters, lastVerdict, blockers
 ```
@@ -349,6 +400,11 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
   "frontendIntegrationTestVerifyIterations": 0,
   "frontendFunctionalTestVerifyIterations": 0,
   "systemIntegrationTestVerifyIterations": 0,
+  "swaggerVerifyIterations": 0,
+  "javadocVerifyIterations": 0,
+  "apiCollectionVerifyIterations": 0,
+  "apiTestVerifyIterations": 0,
+  "apiPerformanceTestVerifyIterations": 0,
   "productionVerifyIterations": 0,
   "maxIterations": 5,
   "lastVerdict": "Backend unit testing requirements not met.",
@@ -382,9 +438,11 @@ Created and maintained at runtime by the Context Agent. Other agents **read** fr
 
 - **Why a rule + an agent file for Sunny?** The `.mdc` rule is the executable playbook the main chat agent (which reliably has the Task tool) follows. The `sunny.md` agent file documents the persona and can be invoked directly to produce the next orchestration step.
 - **Why a file-based Context Agent?** Sub-agents are isolated and context windows are limited. Persisting trimmed, structured summaries to disk lets long-running, multi-loop workflows survive across many isolated agent runs without losing critical decisions.
-- **Why readonly verify/audit agents?** Verification must be objective and side-effect free. The architecture-verify agent, JHipster verify agent, database-verify agent, the six per-layer test-verify agents, the system-integration-test-verify agent, and the production-standards agent only read and report; fixes are made exclusively by the generation and fix agents (Architecture Fix, Issue Resolution, Database Fix, the six per-layer test fix agents, System Integration Test Fix, and Production Fix).
+- **Why readonly verify/audit agents?** Verification must be objective and side-effect free. The architecture-verify agent, JHipster verify agent, database-verify agent, the six per-layer test-verify agents, the system-integration-test-verify agent, the five documentation/API verify agents, and the production-standards agent only read and report; fixes are made exclusively by the generation and fix agents (Architecture Fix, Issue Resolution, Database Fix, the six per-layer test fix agents, System Integration Test Fix, the five doc/API fix agents, and Production Fix).
 - **Why split testing into per-layer verify and fix agents?** Each test layer (unit, integration, functional) has different tools, isolation rules, and failure modes. A dedicated verify agent audits exactly one layer and routes layer-tagged findings to a matching fix agent, so gaps are closed precisely without one giant agent juggling all layers at once.
 - **Why a separate collective system integration stage?** The per-layer backend and frontend suites validate each side in isolation (mocked APIs on the frontend, Testcontainers on the backend). The system integration stage runs the **whole stack together** — the real frontend driving the real gateway + microservices, persisting to a real PostgreSQL database — to catch cross-tier failures (auth propagation, contract drift, persistence) that single-side tests cannot see.
+- **Why five documentation & API stages before production?** Each is independently verifiable and gated. Swagger runs first so its exported OpenAPI spec feeds the Postman **API collection** and the **API tests** (so requests never drift from the contract). API tests assert every endpoint returns its **correct/appropriate status** (200/201/204 or the right 4xx/5xx). API performance load-tests every key endpoint at **1, 10, 20, and 30** concurrent requests against thresholds. Splitting them keeps each concern auditable on its own.
+- **Why an enhanced production agent?** It is the final gate: before its own security/readiness audit it runs a **completeness check of every prior stage** (each stage's exact verdict present + artifacts on disk — a do's-and-don'ts review), then consolidates everything into **one comprehensive final report** handed to the user.
 
 ---
 

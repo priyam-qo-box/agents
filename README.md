@@ -49,7 +49,12 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── system-integration-test-agent.md            # Collective full-stack tests (frontend + backend + PostgreSQL)
     ├── system-integration-test-verify-agent.md     # Verifies cross-tier journeys on the real stack (readonly)
     ├── system-integration-test-fix-agent.md        # Closes collective full-stack testing gaps
-    ├── production-standards-agent.md      # Final production audit (readonly)
+    ├── swagger-agent.md / -verify-agent.md / -fix-agent.md          # Swagger/OpenAPI docs (gen/verify/fix)
+    ├── javadoc-agent.md / -verify-agent.md / -fix-agent.md          # Javadoc (gen/verify/fix)
+    ├── api-collection-agent.md / -verify-agent.md / -fix-agent.md   # Postman collection (gen/verify/fix)
+    ├── api-test-agent.md / -verify-agent.md / -fix-agent.md         # API status tests (gen/verify/fix)
+    ├── api-performance-test-agent.md / -verify-agent.md / -fix-agent.md  # API load tests 1/10/20/30 (gen/verify/fix)
+    ├── production-standards-agent.md      # Final audit of ALL prior outputs + comprehensive report (readonly)
     ├── production-fix-agent.md            # Remediates production audit findings
     └── documentation.md                   # Standalone: Swagger + Postman + Javadoc
 ```
@@ -96,7 +101,12 @@ At runtime, the Context Agent creates a `.sunny/context/` store that acts as sha
 | **System Integration Test Agent** | Collective full-stack tests (frontend + backend + PostgreSQL together) | No |
 | **System Integration Test Verify Agent** | Verifies cross-tier journey coverage on the real running stack | Yes |
 | **System Integration Test Fix Agent** | Closes collective full-stack testing gaps | No |
-| **Production Standards Agent** | Final security / readiness / performance audit | Yes |
+| **Swagger Agent / Verify / Fix** | OpenAPI/Swagger docs for every endpoint; verify spec; close gaps | No / Yes / No |
+| **Javadoc Agent / Verify / Fix** | Javadoc for every public Java API (failOnWarnings); verify; close gaps | No / Yes / No |
+| **API Collection Agent / Verify / Fix** | Postman collection + Newman CI; verify coverage; close gaps | No / Yes / No |
+| **API Test Agent / Verify / Fix** | Assert every endpoint returns correct/appropriate status; verify; fix | No / Yes / No |
+| **API Performance Test Agent / Verify / Fix** | Load test at 1/10/20/30 concurrency; verify thresholds; remediate | No / Yes / No |
+| **Production Standards Agent** | Audits ALL prior outputs (do's/don'ts) + final security/readiness audit + comprehensive report | Yes |
 | **Production Fix Agent** | Remediates production audit findings | No |
 
 ### Standalone (not orchestrated by Sunny)
@@ -125,12 +135,14 @@ flowchart LR
     FTL -->|"layer not satisfied"| FFIX[Fix that layer] --> FTL
     FTL -->|"all 3 frontend layers satisfied"| SIL{"System integration loop<br/>frontend + backend + PostgreSQL"}
     SIL -->|"gaps"| SIFIX[Fix] --> SIL
-    SIL -->|"System integration testing satisfied"| PL{Production loop}
+    SIL -->|"System integration testing satisfied"| DAL{"Doc & API loops<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance"}
+    DAL -->|"stage gaps"| DAFIX[Fix that stage] --> DAL
+    DAL -->|"all 5 doc/API stages satisfied"| PL{"Production loop<br/>audits ALL prior outputs + final report"}
     PL -->|"blocked"| PFIX[Fix production] --> PL
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 
-The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**; the system integration stage then exercises the **whole stack together** (real frontend + gateway + microservices + PostgreSQL). Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
+The pipeline runs **architecture → backend (JHipster) → database → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production**. Backend and frontend tests each split into **three layers — unit, integration, functional — and each layer has its own generation, verify, and fix agent**; the system integration stage then exercises the **whole stack together** (real frontend + gateway + microservices + PostgreSQL); then five documentation/API stages run in order (Swagger first, since its spec feeds the API collection and API tests); finally the production agent audits every prior stage and produces a comprehensive report. Every phase runs a verify -> fix -> re-verify loop that breaks only on an **exact verdict phrase**, and caps at **5 iterations** per loop before escalating to the user:
 
 | Loop | Exit phrase |
 |------|-------------|
@@ -144,6 +156,11 @@ The pipeline runs **architecture → backend (JHipster) → database → backend
 | Frontend integration testing | `Frontend integration testing requirements satisfied.` |
 | Frontend functional testing | `Frontend functional testing requirements satisfied.` |
 | System integration testing | `System integration testing requirements satisfied.` |
+| Swagger / OpenAPI | `Swagger documentation requirements satisfied.` |
+| Javadoc | `Javadoc documentation requirements satisfied.` |
+| API collection | `API collection requirements satisfied.` |
+| API tests | `API testing requirements satisfied.` |
+| API performance | `API performance testing requirements satisfied.` |
 | Production | `Final approval granted. System is production-ready.` |
 
 > Full diagrams (component architecture, sequence, loops, data flow, state machine) are in [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md).
@@ -173,7 +190,7 @@ In a Cursor chat, invoke Sunny and point it at your frontend:
 
 > Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
 
-Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the backend and frontend testing loops, run collective system integration tests across the whole stack, and finish with a production audit — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Run the documentation agent (standalone)
 
