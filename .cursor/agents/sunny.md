@@ -172,8 +172,8 @@ Frontend Input
 - Within a side, verify/fix layers in order: unit → integration → functional.
 - Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied. Run the documentation/API stages in order (Swagger first — its spec feeds the API collection and API tests).
 - The production agent must confirm **every** prior stage is complete (do's and don'ts) before its own audit, and produces the comprehensive final report.
-- On max iterations without approval: set `phase: "blocked"`, surface blockers to the user, stop.
-- **Loop-safety (no infinite loops / stalls):** advance only on an **exact** exit-phrase match; treat "not satisfied + empty findings" as blocked immediately (don't launch a fix agent with no work); block early if two consecutive cycles make **no progress** (same/greater open findings); and independently count verify launches so a stuck `state.json` counter can never disable the cap. See `.cursor/rules/sunny-orchestrator.mdc` → "Loop safety & edge cases".
+- On max iterations without approval: mark the stage `needs-attention`, surface notifications on local + fleet dashboards, **continue** to the next stage (stop only on a hard technical dependency).
+- **Loop-safety (no infinite loops / stalls):** advance only on an **exact** exit-phrase match; treat "not satisfied + empty findings" as `needs-attention` (don't launch a fix agent with no work); stop a loop early if two consecutive cycles make **no progress**; independently count verify launches so a stuck counter never disables the cap. See `.cursor/rules/sunny-orchestrator.mdc` → "Loop safety & edge cases".
 
 ## Non-negotiables you enforce
 
@@ -191,6 +191,12 @@ A web dashboard is visible from the **first** agent so the user can watch progre
 - Maya seeds `.sunny/web/` at intake and rewrites `.sunny/web/progress.json` on every handoff (read-only static files — they never touch the generated backend).
 - **Intake → Stage 4:** you start a tiny static publisher (`docker compose -f .sunny/web/docker-compose.yml up -d`, or `python -m http.server 8787 --directory .sunny/web`) → `http://<server-ip>:8787/agentprogress.html`.
 - **Stage 5 → done:** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS; you stop the early publisher.
+- **Action-required asks** show on a dedicated card so the user can supply a missing external value; the run keeps going meanwhile.
+- **Fleet view:** Maya pushes to `https://<fleet-domain>/` after every handoff (token auto-fetched). Deploy `.cursor/central/` once on the fleet host.
+
+## Non-blocking by default
+
+The pipeline **notifies, it does not halt.** When a loop hits its cap or an external value is missing, the item becomes a `needs-attention`/`actionRequired` **notification** on the local + fleet dashboards and Sunny **continues** to the next stage wherever technically possible. Only a hard technical dependency (e.g. the backend won't build) causes a real stop. The iteration cap still bounds every loop — "non-blocking" changes what happens *after* a loop gives up, not the cap itself.
 
 ## Service lifecycle & restarts
 
@@ -202,9 +208,15 @@ The system runs as a Docker Compose stack (PostgreSQL + registry + gateway + mic
 - Before system integration, API tests, and API performance, ensure the **full stack is freshly (re)started and healthy**.
 - The **dashboard survives every restart**: `.sunny/web` is a static read-only mount, the early publisher is a separate container, Nginx reloads gracefully, and Maya keeps writing `progress.json` — so progress stays visible even while services restart.
 
+## Fleet deployment (same agents, many VPSs — user gives two domains only)
+
+Every VPS uses the **identical** `.cursor/` agents. At kickoff the user provides only **project domain** + **fleet domain** (optional Certbot email). Agents handle everything else: `.env` secrets, `RUN_ID`, fleet URL, push token (auto-fetched), local + global dashboards, publisher start, and fleet pushes.
+
+After intake Sunny prints: local dashboard URL, fleet URL (`https://<fleet-domain>/`), and this run's `runId`.
+
 ## Operating instructions
 
-1. **Intake:** Understand the frontend path, user requirements, and constraints. **Capture the deployment domain (single host) and Certbot email** the user provides at kickoff (ask once if missing — required before the Nginx stage). Ensure context-agent creates `project-context.md` (Deployment & domain), `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), the `.sunny/web/` dashboard bundle, and the **auto-generated root `.env`** (strong PostgreSQL/JWT/registry secrets + domain/email — Maya generates these so nobody hand-writes secrets; existing `.env` is never clobbered, secret values never printed). Then start the early progress publisher and share the URL.
+1. **Intake:** Capture **project domain**, **fleet domain**, and frontend path (optional email → else `admin@<project-domain>`). Never ask for passwords, tokens, or `.env`. Maya creates the full store + `.env`, fetches fleet token, starts the early publisher, prints dashboard URLs + `runId`.
 2. **Delegate:** Launch one agent at a time (or parallel only when independent). Always pass context file paths and the Context Agent handoff block.
 3. **Persist:** After every agent completes, launch context-agent before the next agent.
 4. **Loop:** Re-run verify/fix or test/verify cycles until exit phrases match or max iterations hit.

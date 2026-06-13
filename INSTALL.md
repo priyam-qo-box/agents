@@ -56,6 +56,34 @@ my-project/                 # one GitHub repo
 ln -s /opt/sunny-agents/.cursor /opt/my-app/.cursor
 ```
 
+### Pattern C — Fleet (many VPSs, same agents, one global view)
+
+Use the **same** `.cursor/` on every worker VPS (clone this repo or symlink). Each VPS runs Sunny **independently** for a different project/domain. Deploy the fleet collector **once** on a central host:
+
+| Host | Role | What runs |
+|------|------|-----------|
+| **Central VPS** | Fleet dashboard only | `.cursor/central/` → `https://<fleet-domain>/` |
+| **Worker VPS #1, #2, …** | Full Sunny pipeline | Same `.cursor/` agents + project frontend; pushes progress to central |
+
+**On the central host (once — only fleet domain + email):**
+
+```bash
+cd /opt/sunny-agents/.cursor/central
+cp .env.example .env   # CENTRAL_DOMAIN + ACME_EMAIL only; token auto-generated
+# issue cert + docker compose up — see .cursor/central/README.md
+```
+
+**On every worker VPS:**
+
+```bash
+ln -s /opt/sunny-agents/.cursor /opt/my-app/.cursor
+graphify .
+# Sunny prompt — two domains only:
+# "Sunny, build backend for ./frontend. Project domain: mememates.org. Fleet domain: fleet.example.com"
+```
+
+Maya auto-generates `RUN_ID`, all secrets, fetches the fleet push token, starts the local publisher, and pushes to the global board. **You never copy tokens or hand-write `.env`.**
+
 **Windows → Linux:** [`.gitattributes`](.gitattributes) forces LF for shell scripts and Docker files so `mvnw` / `gradlew` work after clone on the VPS.
 
 ---
@@ -344,7 +372,10 @@ docker compose -f .sunny/web/docker-compose.yml up -d
 | **JHipster `.jhipster/*.json` ignored** | `.gitignore` keeps `!**/.jhipster/` — entity JSON is source. |
 | **Accidentally committed `.env`** | `git rm --cached .env`, rotate all secrets, ensure `.gitignore` is in place. |
 | **An agent needs a new secret mid-run** | Internal secrets (passwords, signing keys) are **self-service**: the agent appends them to `.env` with `openssl rand` and registers the key name with Maya — no blocking. |
-| **A third-party provider key is required** | The agent can't mint it: it adds a `__set-me__` placeholder, flags the integration off, and surfaces a **blocker** (dashboard + final report). You supply the real key in `.env` and re-run that stage. |
+| **A third-party provider key is required** | The agent can't mint it: it adds a `__set-me__` placeholder, flags the integration off, and surfaces an **"Action required"** item (dashboard + final report). The run continues; you supply the real key in `.env` and that stage picks it up. |
+| **A loop can't reach a clean pass** | The iteration cap stops the loop; the pipeline **does not halt** — the stage is marked `needs-attention`, items become notifications, and the run continues. Only a hard technical dependency (won't build) stops it. |
+| **Watch many VPS runs at once** | Deploy `.cursor/central/` on fleet domain (domain + email only). Each worker gives Sunny **project + fleet domain**; agents fetch token and push. |
+| **Central collector unreachable** | Pushes are best-effort; the local dashboard keeps working and the next handoff retries — the run is never blocked. |
 | **Disk full from Docker** | Periodic `docker system prune -af` (careful) + adequate disk per §3. |
 
 ---

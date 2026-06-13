@@ -96,8 +96,13 @@ Always read and update `state.json` on every invocation:
   "project": {
     "name": "project name or empty",
     "domain": "example.com (single host: / -> frontend, /api -> gateway)",
-    "acmeEmail": "admin@example.com (for Certbot/Let's Encrypt)"
+    "fleetDomain": "fleet.example.com (global dashboard — user-provided at kickoff)",
+    "acmeEmail": "admin@example.com (auto: admin@domain if user did not provide)"
   },
+  "runId": "stable id for this run, e.g. <project>-<hostname>-<short> (set once at intake)",
+  "vps": "hostname of this VPS",
+  "localDashboardUrl": "https://<domain>/agentprogress.html (or early http://<ip>:8787/...)",
+  "centralUrl": "https://<central-domain> (fleet collector, or empty if not configured)",
   "workflowStartedAt": "ISO-8601 timestamp set once at intake",
   "phase": "intake | architecture | architecture_verify | architecture_fix | backend | backend_verify | issue_resolution | database | database_verify | database_fix | nginx | nginx_verify | nginx_fix | testing_backend | testing_frontend | testing_system | swagger | javadoc | api_collection | api_testing | api_performance | production | production_fix | complete | blocked",
   "architectureVerifyIterations": 0,
@@ -231,14 +236,14 @@ Each `phase` value maps to exactly one dashboard stage. Seed `stages[]` from thi
 | 14 | `api_performance` | API performance | `api_performance` | 20 |
 | 15 | `production` | Production | `production`, `production_fix` | 20 |
 
-> Note `backend` and `backend_verify` are **separate** dashboard stages even though both live in `state.json.phase` family; map `issue_resolution` to `backend_verify`. The `complete` phase marks `production` done; `blocked` marks the current stage `blocked`.
+> Note `backend` and `backend_verify` are **separate** dashboard stages even though both live in `state.json.phase` family; map `issue_resolution` to `backend_verify`. The `complete` phase marks `production` done. Use stage status `needs-attention` when a loop is capped/deferred but the pipeline continues; reserve `blocked` / `phase: "blocked"` for a **hard stop** only.
 
 ### How to maintain it
 
 **At intake** (step 1 below): copy `.cursor/dashboard/agentprogress.html`, `docker-compose.yml`, and `nginx-progress.conf` verbatim into `.sunny/web/`, set `workflowStartedAt`, seed `state.json.stages[]` from the map, then write the first `.sunny/web/progress.json`.
 
 **On every capture**: after updating `state.json`, recompute and rewrite `.sunny/web/progress.json`:
-1. Resolve the current dashboard stage from `phase` (via the map). Mark every earlier stage `done`, the current stage `active`, later stages `pending`. When `phase` is `complete`, mark all `done`; when `blocked`, mark the current stage `blocked`.
+1. Resolve the current dashboard stage from `phase` (via the map). Mark every earlier stage `done`, the current stage `active`, later stages `pending`. When `phase` is `complete`, mark all `done`. When a stage is capped/deferred but the run continues, mark that stage `needs-attention` and set top-level `status: "needs-attention"` (keep `phase` advancing). Only when `phase` is `blocked` (hard stop), mark the current stage `blocked` and `status: "blocked"`.
 2. Stamp `startedAt` the first time a stage becomes active, `endedAt`/`durationMs` when it transitions to `done`. Mirror the relevant verify counter into the stage's `iterations`.
 3. Derive the feed:
    - `timeConsumedMs = now - workflowStartedAt`
@@ -246,9 +251,41 @@ Each `phase` value maps to exactly one dashboard stage. Seed `stages[]` from thi
    - `pace = doneActualMin / doneEstimateMin` (use `1.0` until at least one stage is done; clamp to `[0.5, 3]`)
    - `remainingMin = (Σ estimateMin of pending + active stages) * pace`
    - `estimatedRemainingMs = remainingMin * 60000`; `estimatedTotalMs = timeConsumedMs + estimatedRemainingMs`; `eta = now + estimatedRemainingMs`
-4. Write `progress.json` with: `project`, `generatedAt = now`, `workflowStartedAt`, `status` (`running`/`complete`/`blocked`), `phase`, `currentStage`/`currentStageLabel`, `counts {done,total:15}`, `timeConsumedMs`, `estimatedTotalMs`, `estimatedRemainingMs`, `eta`, `viewUrl`, `blockers`, and `stages[]` (the dashboard view: `key,label,status,startedAt,endedAt,durationMs,iterations,verdict`).
+4. Write `progress.json` with: `runId`, `project`, `vps`, `localDashboardUrl`, `generatedAt = now`, `workflowStartedAt`, `status` (`running`/`complete`/`blocked`/`needs-attention`), `phase`, `currentStage`/`currentStageLabel`, `counts {done,total:15}`, `timeConsumedMs`, `estimatedTotalMs`, `estimatedRemainingMs`, `eta`, `viewUrl`, `actionRequired` (the `needs-input` items — `key,stage,message,howTo`), `blockers`, and `stages[]` (the dashboard view: `key,label,status,startedAt,endedAt,durationMs,iterations,verdict`).
 
 Keep `progress.json` small and valid JSON — the dashboard fetches it every 60s and the browser hard-refreshes every 5 minutes. Never block a handoff on the dashboard; if anything is uncertain, still write your best current snapshot.
+
+## What the user provides vs what agents generate (kickoff)
+
+**The user only gives Sunny two domains** (plus the frontend path in the prompt):
+
+| User provides | Agents auto-generate / configure |
+|---------------|----------------------------------|
+| **Project domain** (`mememates.org`) | `DOMAIN`, `ACME_EMAIL` (default `admin@<project-domain>` if omitted), Nginx/Certbot wiring, `VITE_API_URL`, local dashboard URLs |
+| **Fleet domain** (`fleet.example.com`) | `FLEET_DOMAIN`, `CENTRAL_DASHBOARD_URL=https://<fleet-domain>`, `CENTRAL_PUSH_TOKEN` (fetched from `GET /api/fleet-config` on the central collector), fleet pushes |
+| *(optional)* Certbot email | Used as `ACME_EMAIL` when given; otherwise `admin@<project-domain>` |
+
+**Never ask the user for:** DB passwords, JWT secrets, registry passwords, `RUN_ID`, push tokens, `.env` contents, or dashboard URLs. You generate/fetch/configure all of these at intake and on every handoff as needed.
+
+## Fleet / global dashboard push (many VPSs → one central view)
+
+Each VPS runs independently and **pushes** its snapshot to a central collector so all runs show on one global board (`https://<central-domain>/`). This is **best-effort and never blocks** a handoff.
+
+- **At intake:** set `runId` once — use `RUN_ID` from `.env` if present, else generate `<sanitized-project>-<hostname>-<4hex>` (see intake step 6) and persist to `.env`. Record `vps` (`hostname`), `localDashboardUrl`, and `centralUrl` in `state.json` and `progress.json`.
+- **Fleet URL + token (automatic):** from intake `fleetDomain`, set `FLEET_DOMAIN` and `CENTRAL_DASHBOARD_URL=https://<fleet-domain>` in `.env`. Fetch the push token (never ask the user):
+  ```bash
+  curl -fsS --max-time 8 "https://<fleet-domain>/api/fleet-config"
+  ```
+  Parse JSON → write `CENTRAL_PUSH_TOKEN` to `.env` (idempotent: only if missing). Retry up to 3 times with 2s pause. If the central host is not up yet, leave token empty and **retry on every handoff** before each push — still never block the run.
+- **Detect local dashboard host:** `curl -fsS --max-time 3 ifconfig.me` or `hostname -I` → build `localDashboardUrl` as `http://<ip>:${PROGRESS_PORT}/agentprogress.html`.
+- **On every capture, after writing `progress.json`:** if `CENTRAL_PUSH_TOKEN` is missing but `CENTRAL_DASHBOARD_URL` is set, try fetching `/api/fleet-config` again. Then if both are set, POST the snapshot:
+  ```bash
+  curl -fsS --max-time 8 -X POST "$CENTRAL_DASHBOARD_URL/api/runs/$RUN_ID" \
+    -H "Authorization: Bearer $CENTRAL_PUSH_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data-binary @.sunny/web/progress.json || true
+  ```
+- **Failures are non-fatal:** if the central host is unreachable, log a one-line note and continue — the local dashboard is unaffected and the next handoff retries the fleet-config fetch + push. If `fleetDomain` was not given at kickoff, skip fleet entirely (local dashboard only).
 
 ## Secrets & environment bootstrap (auto-generated — no manual `.env`)
 
@@ -263,11 +300,12 @@ At intake you create the project's root `.env` so the operator never has to hand
   openssl rand -base64 64   # JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET
   ```
   (No-openssl fallback: `head -c 48 /dev/urandom | base64`.)
-- **Fill deployment values** from intake: `DOMAIN`, `ACME_EMAIL`. Leave `PROGRESS_PORT=8787` default.
+- **Fill deployment values** from intake: `DOMAIN` (project domain), `FLEET_DOMAIN` + `CENTRAL_DASHBOARD_URL=https://<fleet-domain>` (fleet domain), `ACME_EMAIL` (user value or default `admin@<DOMAIN>`). Leave `PROGRESS_PORT=8787` default.
+- **Fetch fleet push token** after writing fleet URL: `GET $CENTRAL_DASHBOARD_URL/api/fleet-config` → append `CENTRAL_PUSH_TOKEN` if missing (see Fleet push section). The central collector auto-generates this token — the user never supplies it.
 - **Start from the template.** Copy `.env.example` → `.env`, then replace every `change-me*` placeholder with a generated secret or the real intake value.
 - **Never expose secret values.** Do **not** write secret values into `project-context.md`, `state.json`, `progress.json`, handoff packages, fix logs, or chat. Only record that they were **generated** (boolean/notes), never the values.
 - **Keep it out of Git.** `.env` is already covered by `.gitignore`; confirm it is ignored. Never stage or commit it.
-- **Minimum keys to ensure exist** (generate if missing): `DOMAIN`, `ACME_EMAIL`, `PROGRESS_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `SPRING_PROFILES_ACTIVE`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`, `JHIPSTER_REGISTRY_PASSWORD`. (Frontend `VITE_API_URL`/`REACT_APP_API_URL` and optional `DASHBOARD_AUTH_*` are set/extended later by Naveen.)
+- **Minimum keys to ensure exist** (generate if missing): `DOMAIN`, `FLEET_DOMAIN`, `CENTRAL_DASHBOARD_URL`, `CENTRAL_PUSH_TOKEN` (fetch from fleet-config when fleet domain given), `ACME_EMAIL`, `PROGRESS_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `SPRING_PROFILES_ACTIVE`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`, `JHIPSTER_REGISTRY_PASSWORD`, `RUN_ID`. (Frontend `VITE_API_URL`/`REACT_APP_API_URL` and optional `DASHBOARD_AUTH_*` are set/extended later by Naveen.)
 
 Downstream agents (Vikram, Naveen, the test stages) **consume** these env vars and must reference them as `${VAR}` in `docker-compose`/config — they must never hardcode secret literals or regenerate the ones you created.
 
@@ -280,7 +318,7 @@ Downstream agents (Vikram, Naveen, the test stages) **consume** these env vars a
     "message": "Payment integration needs a live Stripe secret key.",
     "howTo": "Add STRIPE_API_KEY=<your key> to .env on the server, then re-run the backend stage." }
   ```
-  Copy these blockers verbatim into `progress.json.blockers` so `agentprogress.html` renders them. Set `phase: "blocked"` **only if** the agent says that stage cannot proceed without it. Internal secrets the agent already appended are **not** blockers — just register the key name in `envKeys`.
+  Copy these into `progress.json.actionRequired` (primary — drives the "Action required" card) and `blockers` if needed. Default: **do not** set `phase: "blocked"` — the run continues. Set `phase: "blocked"` **only** when continuing is genuinely impossible (hard technical dependency). Internal secrets the agent already appended are **not** notifications — just register the key name in `envKeys`.
 - The dashboard is **read-only** — the user supplies the value by editing `.env` on the server (or telling Sunny), never by typing into the page. Once provided, clear the blocker on the next capture.
 
 ## Required workflow
@@ -294,6 +332,11 @@ Create or reset the store:
 3. Create empty placeholder files for phase reports if they do not exist.
 4. Seed the dashboard: create `.sunny/web/`, copy `agentprogress.html` + `docker-compose.yml` + `nginx-progress.conf` from `.cursor/dashboard/`, and write the first `progress.json`. (Sunny starts the publisher; you only create the files.)
 5. **Bootstrap secrets & environment** — generate the root `.env` with strong secrets so no human has to (see "Secrets & environment bootstrap" below).
+6. **Register fleet identity** (same agents on every VPS — each machine is an independent run):
+   - **`RUN_ID`:** if not already in `.env`, generate once as `<sanitized-project>-<hostname>-<4hex>` and persist.
+   - **`vps`:** `hostname` → `state.json` / `progress.json`.
+   - **`localDashboardUrl`:** detect server IP, set `http://<ip>:8787/agentprogress.html` (update to `https://<domain>/agentprogress.html` after Nginx).
+   - **Fleet (from intake `fleetDomain` only):** write `FLEET_DOMAIN`, `CENTRAL_DASHBOARD_URL`, fetch `CENTRAL_PUSH_TOKEN` from `/api/fleet-config`, set `state.json.centralUrl` + `project.fleetDomain`, perform **first fleet push** after initial `progress.json`.
 
 ### 2. On agent output capture (every invocation)
 
@@ -329,8 +372,10 @@ Read the requested files and return a trimmed summary for the specified `targetA
 
 ## Deployment & domain
 - **Domain:** {domain} — single host: `https://{domain}/` serves the frontend, `https://{domain}/api` proxies the JHipster gateway (set by Naveen at the Nginx stage).
-- **Certbot/ACME email:** {acmeEmail} — for Let's Encrypt issuance + renewal.
+- **Fleet domain:** {fleetDomain} — global board at `https://{fleetDomain}/` (push token auto-fetched by agents; user never supplies it).
+- **Certbot/ACME email:** {acmeEmail} — auto `admin@{domain}` unless user provided an email at kickoff.
 - **Progress dashboard:** early `http://{server-ip}:8787/agentprogress.html` (publisher), then `https://{domain}/agentprogress.html` once Nginx is up.
+- **Fleet dashboard:** {centralUrl or "not configured"} — global view for all VPS runs (same `.cursor/` agents everywhere). **Run ID:** {runId} — card key on the fleet board. **VPS:** {hostname}.
 - **Secrets:** root `.env` auto-generated at intake (gitignored). Generated: {yes/no} — POSTGRES_PASSWORD, JWT base64 secret, registry password. **Never record secret values here**, only this status line.
 - **Notes:** captured at intake. If domain/email are missing, flag as an open question — they are required before the Nginx & SSL stage.
 
@@ -847,15 +892,15 @@ Every response must include:
 2. **State snapshot** — current `phase`, iteration counters, `lastVerdict`, and dashboard summary (`done/total` stages, ETA).
 3. **Handoff package** — a single markdown block titled `## Context for {targetAgent}` containing only what the next agent needs. Keep under 150 lines.
 
-If any loop counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backendUnitTestVerifyIterations` / `backendIntegrationTestVerifyIterations` / `backendFunctionalTestVerifyIterations` / `frontendUnitTestVerifyIterations` / `frontendIntegrationTestVerifyIterations` / `frontendFunctionalTestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; or `productionVerifyIterations`) reaches `maxIterations` and that loop's verdict is not satisfied, set `phase: "blocked"`, populate `blockers`, mark the current dashboard stage `blocked` and rewrite `progress.json` (`status: "blocked"` + blockers), and tell Sunny to stop the loop and escalate to the user.
+If any loop counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backendUnitTestVerifyIterations` / `backendIntegrationTestVerifyIterations` / `backendFunctionalTestVerifyIterations` / `frontendUnitTestVerifyIterations` / `frontendIntegrationTestVerifyIterations` / `frontendFunctionalTestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; or `productionVerifyIterations`) reaches `maxIterations` and that loop's verdict is not satisfied, **stop iterating that loop** (the anti-infinite-loop cap still holds) but **do not halt the whole pipeline by default**: mark the current dashboard stage `needs-attention`, copy the remaining open findings into `actionRequired`/`blockers` as **notifications**, set `status: "needs-attention"`, rewrite + push `progress.json`, and tell Sunny to **continue to the next stage wherever technically possible**. Only set `phase: "blocked"` and stop when continuing is genuinely impossible (a hard technical dependency — e.g. the backend will not build, so tests cannot run). Either way the items stay visible on the local and fleet dashboards and in the final production report.
 
 ## Loop-safety enforcement (prevent stalls and infinite loops)
 
 Beyond the iteration cap, enforce these on every verify capture and flag Sunny to block early when triggered:
 
 - **Counter integrity.** Always **increment the matching counter on every verify run** (never skip). The cap depends on it. Record the count even when the verdict is unclear.
-- **Deadlock (not satisfied + no findings).** If the verdict is not the exit phrase **and** the findings table is empty, do not route to a fix agent — set `phase: "blocked"`, add blocker `"verify not satisfied but produced no actionable findings"`, update the dashboard, and tell Sunny to escalate.
-- **No-progress / oscillation.** Compare the new verify report's open findings to the previous cycle's. If two **consecutive** cycles show no net reduction (same/greater count, or identical finding IDs persisting), set `phase: "blocked"` with blocker `"no progress across 2 cycles"` — even below the cap. Keep enough of the prior report (finding IDs + counts) to make this comparison.
+- **Deadlock (not satisfied + no findings).** If the verdict is not the exit phrase **and** the findings table is empty, do not route to a fix agent — mark the stage `needs-attention`, add a notification `"verify not satisfied but produced no actionable findings"`, update + push the dashboard, and tell Sunny to continue (escalate only if the stage gates a hard dependency).
+- **No-progress / oscillation.** Compare the new verify report's open findings to the previous cycle's. If two **consecutive** cycles show no net reduction (same/greater count, or identical finding IDs persisting), stop that loop early (below the cap), mark the stage `needs-attention` with notification `"no progress across 2 cycles"`, and continue. Keep enough of the prior report (finding IDs + counts) to make this comparison.
 - **Near-miss verdict.** Record `lastVerdict` **verbatim**. Only an exact match to the stage's exit phrase counts as satisfied; if a verdict looks like a typo'd pass, keep it as not-satisfied and note it so Sunny can ask the verify agent to re-emit the exact phrase.
 
 Be precise. You are the memory that makes long-running multi-agent workflows possible.

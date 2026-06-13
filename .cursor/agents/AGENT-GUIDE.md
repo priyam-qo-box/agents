@@ -51,18 +51,30 @@ graphify install
 - Summarizes each agent's output into structured reports, updates `state.json` (phase, counters, `lastVerdict`, `project` domain/email, `workflowStartedAt`, per-stage timing), and builds the trimmed handoff for the next agent.
 - **Owns the live progress dashboard:** at intake she seeds `.sunny/web/` (dashboard + early publisher), and after **every** handoff she rewrites `.sunny/web/progress.json` (completed/pending stages, current phase, time consumed/estimated/remaining, ETA).
 - **Bootstraps secrets:** at intake she auto-generates the root `.env` with strong random secrets (PostgreSQL password, JWT base64 secret, registry password) + `DOMAIN`/`ACME_EMAIL` from the prompt — so no human writes secrets. Idempotent (never clobbers an existing `.env`) and secret values are never logged to context, the dashboard, or chat.
+- **Pushes to the fleet board (optional):** if `CENTRAL_DASHBOARD_URL` + `CENTRAL_PUSH_TOKEN` are set, after every handoff she POSTs this run's `progress.json` to the central collector so it shows on the global dashboard. Best-effort — a failed push never blocks the run.
 - **Reads:** the previous agent's raw output + current store. **Produces:** all `.sunny/context/*.md` reports + `state.json` + `.sunny/web/progress.json`.
 
 ---
 
 ## Inputs you give at kickoff & the live dashboard
 
-- **Domain + Certbot email (at intake):** provide a single **domain** (`https://<domain>/` → frontend, `https://<domain>/api` → gateway) and a **Certbot/ACME email**. Sunny captures them at intake; Naveen uses them at the Nginx stage. If omitted, Sunny asks before the Nginx stage.
-- **Secrets are automatic:** you do **not** supply DB passwords or JWT secrets. Maya generates a gitignored `.env` with strong secrets at intake; provide your own only if you want to override (pre-create `.env` and Maya keeps your values).
-- **New secrets mid-run don't block agents:** any **internal** secret a later stage needs is appended to `.env` on the fly (strong `openssl` value, key name registered with Maya). Only an **external** third-party provider key (one no agent can mint) becomes a surfaced **blocker** — you drop it into `.env` and re-run that stage.
+**You only provide two domains** (plus the frontend path in the Sunny prompt):
+
+| You give | Agents handle automatically |
+|----------|------------------------------|
+| **Project domain** | `DOMAIN`, default `ACME_EMAIL=admin@<domain>`, Nginx/SSL, local dashboard, all DB/JWT secrets |
+| **Fleet domain** | `CENTRAL_DASHBOARD_URL`, `CENTRAL_PUSH_TOKEN` (fetched from `/api/fleet-config`), fleet pushes, `RUN_ID` |
+
+Optional: Certbot email (else `admin@<project-domain>`). **Never** passwords, tokens, `.env`, or dashboard URLs.
+
+- **Secrets are automatic:** Maya generates the gitignored `.env` with strong secrets at intake.
+- **New secrets mid-run don't block agents:** any **internal** secret a later stage needs is appended to `.env` on the fly (strong `openssl` value, key name registered with Maya). An **external** third-party provider key (one no agent can mint) becomes a surfaced **"Action required"** item on the dashboard — the run keeps going; you drop the value into `.env` and that stage picks it up.
+- **Non-blocking by default:** loops keep their hard iteration cap, but when a loop gives up or an external value is missing, it becomes a `needs-attention`/`actionRequired` **notification** and the pipeline continues. Only a hard technical dependency (e.g. backend won't build) causes a real stop.
+- **Fleet (one domain):** deploy `.cursor/central/` once on the fleet host (`CENTRAL_DOMAIN` + `ACME_EMAIL` only — push token auto-generated). Every worker VPS gives Sunny **project domain + fleet domain**; Maya fetches the token and pushes progress.
 - **Live progress dashboard (from agent #1):** completed/pending stages, current phase, time consumed, estimated total, time remaining — auto-refreshing every 5 minutes.
   - Early (intake → before Nginx): `http://<server-ip>:8787/agentprogress.html` (tiny static publisher).
   - From the Nginx stage on: `https://<domain>/agentprogress.html` over HTTPS (publisher retired).
+  - Global/fleet: `https://<central-domain>/` (all runs, if the collector is deployed).
   - It is a read-only artifact in `.sunny/web/`; it never modifies the generated backend.
 - **Service restarts:** the system runs as a Docker Compose stack. Code/config-changing agents rebuild + restart the affected services (`docker compose up -d --build <service>`) so changes take effect; the frontend is rebuilt when its API base URL moves to the domain (`/api`); Nginx uses a graceful reload; and the testing stages run against a freshly (re)started, healthy stack. The dashboard survives every restart (separate publisher + static mount + Nginx graceful reload).
 

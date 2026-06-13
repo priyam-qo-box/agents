@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="300" />
+  <title>Sunny — Fleet Progress</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+      --muted: #8b949e; --done: #3fb950; --active: #58a6ff; --blocked: #f85149;
+      --warn: #d29922; --stale: #6e7681;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg:#f6f8fa; --panel:#fff; --border:#d0d7de; --text:#1f2328;
+        --muted:#656d76; --done:#1a7f37; --active:#0969da; --blocked:#cf222e; --warn:#9a6700; --stale:#8c959f; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 24px 16px 60px; }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    h1 { font-size: 20px; margin: 0; }
+    .sun { color: #f2cc60; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .pill { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted); }
+    .pill.live { color: var(--done); border-color: color-mix(in srgb, var(--done) 50%, var(--border)); }
+    .pill.err { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 50%, var(--border)); }
+
+    .summary { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px; }
+    .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 14px; font-size: 13px; }
+    .chip b { font-size: 18px; display: block; }
+    .chip.action b { color: var(--warn); }
+    .chip.run b { color: var(--active); }
+    .chip.done b { color: var(--done); }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; margin-top: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .card.attn { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+    .card.blocked { border-color: color-mix(in srgb, var(--blocked) 55%, var(--border)); }
+    .card.stale { opacity: .72; }
+    .card h2 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
+    .card .meta { color: var(--muted); font-size: 12px; word-break: break-word; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--muted); }
+    .dot.running { background: var(--active); }
+    .dot.complete { background: var(--done); }
+    .dot.blocked { background: var(--blocked); }
+    .dot.needs-attention { background: var(--warn); }
+
+    .track { height: 8px; background: color-mix(in srgb, var(--active) 14%, transparent);
+      border-radius: 999px; overflow: hidden; }
+    .fill { height: 100%; background: linear-gradient(90deg, var(--active), var(--done)); width: 0; transition: width .5s; }
+    .row { display: flex; justify-content: space-between; font-size: 13px; gap: 8px; }
+    .row .k { color: var(--muted); }
+
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+    .badge.action { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn);
+      border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+    .badge.stale { background: color-mix(in srgb, var(--stale) 18%, transparent); color: var(--stale); }
+
+    .asks { margin: 4px 0 0; border-top: 1px dashed var(--border); padding-top: 8px; }
+    .asks .ask { font-size: 12px; margin: 4px 0; }
+    .asks .ask .key { font-family: ui-monospace, Menlo, monospace; color: var(--warn); font-weight: 700; }
+    .links { margin-top: auto; display: flex; gap: 10px; padding-top: 8px; }
+    a.btn { font-size: 12px; color: var(--active); text-decoration: none; border: 1px solid var(--border);
+      padding: 5px 10px; border-radius: 8px; }
+    a.btn:hover { border-color: var(--active); }
+    .empty { color: var(--muted); text-align: center; padding: 50px 0; }
+    footer { margin-top: 26px; color: var(--muted); font-size: 12px; }
+    .err { color: var(--blocked); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="sun">&#9728;</span>
+      <div>
+        <h1>Sunny — Fleet Progress</h1>
+        <div class="sub">All independent agent runs across every VPS, in one view.</div>
+      </div>
+      <span class="pill" id="pill">loading&hellip;</span>
+    </header>
+
+    <div class="summary" id="summary"></div>
+    <div class="grid" id="grid">
+      <div class="empty" id="empty">Waiting for the first VPS to report&hellip;</div>
+    </div>
+
+    <footer>
+      <span id="updated"></span> &middot; auto-refreshes every 5&nbsp;min (live poll every 30&nbsp;s)
+      &middot; <span id="feed"></span>
+    </footer>
+  </div>
+
+  <script>
+    "use strict";
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function fmtDur(ms) {
+      ms = Number(ms) || 0; var s = Math.floor(ms / 1000);
+      var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      if (h > 0) return h + "h " + m + "m";
+      if (m > 0) return m + "m";
+      return s + "s";
+    }
+    function ageMin(iso) {
+      var t = Date.parse(iso); if (isNaN(t)) return null;
+      return Math.floor((Date.now() - t) / 60000);
+    }
+
+    function statusLabel(s) {
+      return { running: "running", complete: "complete", blocked: "blocked",
+        "needs-attention": "needs attention" }[s] || s || "unknown";
+    }
+
+    function card(run) {
+      var done = (run.counts && run.counts.done) || 0;
+      var total = (run.counts && run.counts.total) || 0;
+      var pct = total ? Math.round((done / total) * 100) : 0;
+      var attn = run.actionCount > 0 || run.status === "needs-attention";
+      var cls = "card";
+      if (run.status === "blocked") cls += " blocked";
+      else if (attn) cls += " attn";
+      if (run.stale) cls += " stale";
+
+      var name = (run.project && run.project.name) || run.runId || "(unnamed run)";
+      var dom = (run.project && run.project.domain) || "";
+      var badges = "";
+      if (run.actionCount > 0) badges += '<span class="badge action">&#9888; ' + run.actionCount + " need" + (run.actionCount > 1 ? "s" : "") + " input</span> ";
+      var am = ageMin(run.receivedAt);
+      if (run.stale) badges += '<span class="badge stale">stale ' + (am != null ? am + "m" : "") + "</span>";
+
+      var asks = "";
+      if (run.actionRequired && run.actionRequired.length) {
+        asks = '<div class="asks">' + run.actionRequired.map(function (a) {
+          var k = a.key ? '<span class="key">' + esc(a.key) + "</span> " : "";
+          return '<div class="ask">&#9888; ' + k + esc(a.message || a.howTo || "details needed") + "</div>";
+        }).join("") + "</div>";
+      }
+
+      var links = "";
+      if (run.localDashboardUrl) links += '<a class="btn" href="' + esc(run.localDashboardUrl) + '" target="_blank" rel="noopener">Open VPS dashboard &#8599;</a>';
+      links += '<a class="btn" href="/api/runs/' + encodeURIComponent(run.runId) + '" target="_blank" rel="noopener">Raw</a>';
+
+      return '<div class="' + cls + '">'
+        + '<h2><span class="dot ' + esc(run.status) + '"></span>' + esc(name) + "</h2>"
+        + '<div class="meta">' + (dom ? esc(dom) + " &middot; " : "") + "VPS: " + esc(run.vps || "?") + "</div>"
+        + (badges ? '<div>' + badges + "</div>" : "")
+        + '<div class="track"><div class="fill" style="width:' + pct + '%"></div></div>'
+        + '<div class="row"><span class="k">' + pct + "% &middot; " + done + "/" + total + " stages</span><span>" + esc(statusLabel(run.status)) + "</span></div>"
+        + '<div class="row"><span class="k">Stage</span><span>' + esc(run.currentStageLabel || "—") + "</span></div>"
+        + '<div class="row"><span class="k">Elapsed / remaining</span><span>' + fmtDur(run.timeConsumedMs) + " / " + fmtDur(run.estimatedRemainingMs) + "</span></div>"
+        + (run.eta ? '<div class="row"><span class="k">ETA</span><span>' + esc(run.eta) + "</span></div>" : "")
+        + asks
+        + '<div class="links">' + links + "</div>"
+        + "</div>";
+    }
+
+    function render(data) {
+      var runs = (data && data.runs) || [];
+      $("pill").className = "pill live";
+      $("pill").textContent = runs.length + " run" + (runs.length === 1 ? "" : "s");
+
+      var nAction = 0, nRun = 0, nDone = 0;
+      runs.forEach(function (r) {
+        if (r.actionCount > 0) nAction++;
+        if (r.status === "running" || r.status === "needs-attention") nRun++;
+        if (r.status === "complete") nDone++;
+      });
+      $("summary").innerHTML =
+        '<div class="chip run"><b>' + nRun + "</b>active</div>"
+        + '<div class="chip action"><b>' + nAction + "</b>need input</div>"
+        + '<div class="chip done"><b>' + nDone + "</b>complete</div>"
+        + '<div class="chip"><b>' + runs.length + "</b>total</div>";
+
+      if (!runs.length) {
+        $("grid").innerHTML = '<div class="empty">No runs reported yet. Each VPS appears here after its first handoff.</div>';
+      } else {
+        var order = { "needs-attention": 0, running: 1, blocked: 2, complete: 3 };
+        runs.sort(function (a, b) {
+          var d = (b.actionCount > 0) - (a.actionCount > 0);
+          if (d) return d;
+          return (order[a.status] == null ? 9 : order[a.status]) - (order[b.status] == null ? 9 : order[b.status]);
+        });
+        $("grid").innerHTML = runs.map(card).join("");
+      }
+      var now = new Date();
+      $("updated").textContent = "updated " + now.toLocaleTimeString();
+      $("feed").innerHTML = "";
+    }
+
+    function poll() {
+      fetch("/api/runs?_=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(render)
+        .catch(function (e) {
+          $("pill").className = "pill err";
+          $("pill").textContent = "offline";
+          $("feed").innerHTML = '<span class="err">feed error: ' + esc(e.message) + "</span>";
+        });
+    }
+    poll();
+    setInterval(poll, 30000);
+  </script>
+</body>
+</html>

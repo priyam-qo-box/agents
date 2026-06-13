@@ -31,6 +31,11 @@ A web dashboard shows run progress (completed/pending stages, current phase, tim
 - **Early publisher (intake → Stage 4):** Sunny starts a tiny `nginx:alpine` static server (Phase 0) → `http://<server-ip>:8787/agentprogress.html`.
 - **Domain (Stage 5 → done):** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS and Sunny stops the early publisher.
 - The page hard-refreshes every 5 minutes and polls `progress.json` every 60s.
+- **Action-required asks** (e.g. an external API key a run is waiting on) render as a dedicated "Action required" card so the user can see and supply the value — the run keeps going meanwhile (never halts on it).
+
+### Fleet / global dashboard (many VPSs → one view)
+
+Each VPS runs **independently** with the **same** `.cursor/` agent definitions. The user only provides **project domain + fleet domain** at kickoff; Maya auto-configures `CENTRAL_DASHBOARD_URL`, fetches `CENTRAL_PUSH_TOKEN` from the central collector's `/api/fleet-config`, generates all other secrets, and **pushes** after every handoff. Deploy `.cursor/central/` once on the fleet host (only `CENTRAL_DOMAIN` + `ACME_EMAIL` in `.env` — push token auto-generated there too).
 
 ## Service lifecycle & restarts
 
@@ -68,7 +73,7 @@ Maya generates the base `.env` at intake, but the set of secrets is **not frozen
 - **Never invent or fake an external credential** and never commit a real one. A `__set-me__` placeholder for an external key is acceptable and expected; a weak/placeholder value for an *internal* secret is a finding.
 - Verifiers/auditors treat a missing **internal** secret as "the responsible agent should have appended it" (actionable finding), and a missing **external** secret as a tracked blocker (not an agent failure).
 
-So the answer to "do they get blocked?": **no for internal secrets** (the agent just adds them), and **only for external provider keys that are mandatory for that stage** — and even then it's an explicit, surfaced blocker, not a silent stall.
+So the answer to "do they get blocked?": **no for internal secrets** (the agent just adds them). For external provider keys: surface as **`needs-input` / `actionRequired`** on the dashboards and **keep going** by default — hard-stop only when the stage literally cannot proceed without that key.
 
 ## Agent registry
 
@@ -213,7 +218,11 @@ Frontend Input → Sunny
 ## Phase 0 — Intake
 
 1. Analyze the frontend: API calls, models, auth, routes, requirements.
-2. **Capture deployment inputs** the user gives at kickoff: the **domain** (single host — `https://<domain>/` frontend, `https://<domain>/api` gateway) and a **Certbot/ACME email**. If either is missing, ask the user once now; they are **required before the Nginx stage (Phase 2.6)** but intake can proceed without them. Pass `project.name`, `domain`, `acmeEmail` to context-agent.
+2. **Capture the only user inputs at kickoff** (do not ask for secrets, tokens, or `.env` values):
+   - **Project domain** — single host: `https://<domain>/` → frontend, `https://<domain>/api` → gateway.
+   - **Fleet domain** — global dashboard host (e.g. `fleet.example.com` → `https://fleet.example.com/`).
+   - *(optional)* **Certbot email** — if omitted, agents use `admin@<project-domain>`.
+   Pass `project.name`, `domain`, `fleetDomain`, and `acmeEmail` (if given) to context-agent. Maya derives everything else: `.env` secrets, `RUN_ID`, `CENTRAL_DASHBOARD_URL`, `CENTRAL_PUSH_TOKEN` (fetched from `GET https://<fleet-domain>/api/fleet-config`), local dashboard URL, early publisher, and fleet pushes.
 3. Launch **context-agent** with `sourceAgent: intake`, frontend path, requirements, derived domain model, and the deployment inputs. Maya writes `project-context.md` (Deployment & domain section), initializes `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), seeds the dashboard bundle in `.sunny/web/`, and **auto-generates the root `.env` with strong secrets** (PostgreSQL password, JWT base64 secret, registry password) plus `DOMAIN`/`ACME_EMAIL` from intake — no human writes secrets. Maya is idempotent: an existing `.env` is never clobbered; only missing keys/secrets are added. Secret values are never echoed to chat, context, or the dashboard.
 4. Confirm `.sunny/context/project-context.md`, `state.json`, `.sunny/web/progress.json`, and the root `.env` (gitignored, secrets generated) exist before proceeding.
 5. **Start the early progress publisher** so the run is web-visible from agent #1:
@@ -221,7 +230,10 @@ Frontend Input → Sunny
    docker compose -f .sunny/web/docker-compose.yml up -d   # or: PROGRESS_PORT=9090 docker compose -f .sunny/web/docker-compose.yml up -d
    # no-Docker fallback: python -m http.server 8787 --directory .sunny/web
    ```
-   Tell the user the URL: `http://<server-ip>:8787/agentprogress.html` (open port 8787; plain HTTP until Naveen issues the cert). It auto-refreshes every 5 min and shows completed/pending stages, current phase, time consumed, estimated total, and time remaining. Naveen later serves the same page at `https://<domain>/agentprogress.html`.
+   Tell the user **all dashboard URLs** for this run:
+   - **Local (this VPS):** `http://<server-ip>:8787/agentprogress.html` (open port 8787; plain HTTP until Naveen issues the cert). Auto-refreshes every 5 min.
+   - **Local (after Nginx):** `https://<domain>/agentprogress.html`
+   - **Fleet (all VPSs):** if `CENTRAL_DASHBOARD_URL` is set, print `https://<central-domain>/` and this run's **`runId`** (from `state.json`) so the user can find this card on the global board.
 
 ## Phase 0.5 — Architecture loop
 
@@ -236,7 +248,7 @@ repeat:
   3. Launch architecture-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist architecture-verify-report.md
   5. Read state.json — if lastVerdict == exit phrase → break to Phase 1
-  6. If architectureVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  6. If architectureVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   7. Launch architecture-fix-agent with the verify findings
   8. Launch context-agent to append architecture-fix-log.md
   9. goto repeat
@@ -256,7 +268,7 @@ repeat:
   1. Launch jhipster-verify-agent (readonly) with context handoff
   2. Launch context-agent to persist verify-report.md
   3. Read state.json — if lastVerdict == exit phrase → break
-  4. If backendVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  4. If backendVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   5. Launch issue-resolution-agent with verify-report findings
   6. Launch context-agent to append issue-resolution-log.md
   7. goto repeat
@@ -275,7 +287,7 @@ repeat:
   3. Launch database-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist database-verify-report.md
   5. Read state.json — if lastVerdict == exit phrase → break to Phase 2.6
-  6. If databaseVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  6. If databaseVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   7. Launch database-fix-agent with the verify findings
   8. Launch context-agent to append database-fix-log.md
   9. goto repeat
@@ -301,7 +313,7 @@ repeat:
   3. Launch nginx-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist nginx-verify-report.md
   5. Read state.json — if lastVerdict == exit phrase → break to Phase 3A
-  6. If nginxVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  6. If nginxVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   7. Launch nginx-fix-agent with the verify findings
   8. Launch context-agent to append nginx-fix-log.md
   9. goto repeat
@@ -329,7 +341,7 @@ For each layer L in [unit, integration, functional]:
     a. Launch backend-{L}-test-verify-agent (readonly) with context handoff
     b. Launch context-agent to persist backend-{L}-test-verify-report.md
     c. Read state.json — if lastVerdict == this layer's exit phrase → break to next layer
-    d. If backend{L}TestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+    d. If backend{L}TestVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
     e. Launch backend-{L}-test-fix-agent with the verify findings
     f. Launch context-agent to append backend-{L}-test-fix-log.md
     g. goto repeat
@@ -359,7 +371,7 @@ For each layer L in [unit, integration, functional]:
     a. Launch frontend-{L}-test-verify-agent (readonly) with context handoff
     b. Launch context-agent to persist frontend-{L}-test-verify-report.md
     c. Read state.json — if lastVerdict == this layer's exit phrase → break to next layer
-    d. If frontend{L}TestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+    d. If frontend{L}TestVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
     e. Launch frontend-{L}-test-fix-agent with the verify findings
     f. Launch context-agent to append frontend-{L}-test-fix-log.md
     g. goto repeat
@@ -382,7 +394,7 @@ repeat:
   3. Launch system-integration-test-verify-agent (readonly) with context handoff
   4. Launch context-agent to persist system-integration-test-verify-report.md
   5. Read state.json — if lastVerdict == exit phrase → break to Phase 3D
-  6. If systemIntegrationTestVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  6. If systemIntegrationTestVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   7. Launch system-integration-test-fix-agent with the verify findings
   8. Launch context-agent to append system-integration-test-fix-log.md
   9. goto repeat
@@ -408,7 +420,7 @@ For each stage S in [swagger, javadoc, api-collection, api-test, api-performance
     3. Launch S verify agent (readonly) with context handoff
     4. Launch context-agent to persist {S}-verify-report.md
     5. Read state.json — if lastVerdict == this stage's exit phrase → break to next stage
-    6. If {S}VerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+    6. If {S}VerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
     7. Launch S fix agent with the verify findings
     8. Launch context-agent to append {S}-fix-log.md
     9. goto repeat
@@ -431,7 +443,7 @@ repeat:
   1. Launch production-standards-agent (readonly) with FULL context handoff (all files)
   2. Launch context-agent to persist production-report.md (comprehensive final report)
   3. Read state.json — if lastVerdict == exit phrase → break to Final Approval
-  4. If productionVerifyIterations >= maxIterations (5) → set blocked, stop, report to user
+  4. If productionVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   5. Launch production-fix-agent with the production-report findings
   6. Launch context-agent to append production-fix-log.md
   7. goto repeat
@@ -443,13 +455,14 @@ After the exit phrase, present the final summary to the user: architecture, cove
 
 The 5-iteration cap is the primary guard. These rules close the remaining edge cases so a loop can never spin forever or stall silently:
 
+- **Notify, don't halt (default).** When a loop gives up (cap reached, deadlock, or no-progress), the **anti-infinite-loop cap still stops that loop**, but the **pipeline keeps going by default**. Mark the stage `needs-attention`, copy the open findings into `actionRequired`/`blockers` as **notifications** (surfaced on the local **and** fleet dashboards), and move to the next stage **wherever technically possible**. Only set `phase: "blocked"` and stop when continuing is genuinely impossible — a hard technical dependency (e.g. backend won't build, so tests can't run). Unresolved items always land in the final production report.
 - **Exact-phrase only.** A loop advances **only** when `lastVerdict` equals the stage's exit phrase character-for-character. Near-misses (missing period, extra words, different casing) do **not** advance — instruct every verify agent to emit the exact phrase on its own line. When in doubt, treat as "not satisfied".
-- **Deadlock guard (not satisfied + no findings).** If a verify agent does **not** emit the exit phrase but returns an **empty findings table**, do **not** launch the fix agent (it would have no work and loop uselessly). Treat it as blocked: set `phase: "blocked"`, record blocker `"verify not satisfied but produced no actionable findings"`, and escalate to the user.
-- **No-progress / oscillation guard.** Maya compares each new verify report to the previous one. If two **consecutive** fix→verify cycles show **no net reduction** in open findings (same or higher count, or the identical finding IDs persist), stop early: set `phase: "blocked"` with blocker `"no progress across 2 cycles"` even if the counter is below 5. This catches fix-A-breaks-B oscillation.
+- **Deadlock guard (not satisfied + no findings).** If a verify agent does **not** emit the exit phrase but returns an **empty findings table**, do **not** launch the fix agent (it would have no work and loop uselessly). Mark the stage `needs-attention` with notification `"verify not satisfied but produced no actionable findings"` and continue (escalate/stop only if it gates a hard dependency).
+- **No-progress / oscillation guard.** Maya compares each new verify report to the previous one. If two **consecutive** fix→verify cycles show **no net reduction** in open findings (same or higher count, or the identical finding IDs persist), stop that loop early (even below 5), mark the stage `needs-attention` with notification `"no progress across 2 cycles"`, and continue. This catches fix-A-breaks-B oscillation without halting the run.
 - **Counter-integrity backstop.** Sunny independently counts how many times it has launched each verify agent this stage. If Maya's `state.json` counter ever disagrees or fails to increment, Sunny uses its own count and still enforces the cap — a stuck counter can never disable the cap.
 - **Cap is checked before re-fixing.** Always read `state.json` and evaluate `>= maxIterations` **before** launching the fix agent again, never after.
 - **Generators run once.** In the per-layer test stages the unit/integration/functional **generators run once**; only the per-layer fix agents run inside the loops. Never re-enter generation from a verify failure.
-- **Genuinely-blocked fix.** A fix agent that cannot resolve a finding must say so explicitly ("No — {blockers}"); Sunny then escalates rather than re-looping a known-unfixable item.
+- **Genuinely-blocked fix.** A fix agent that cannot resolve a finding must say so explicitly ("No — {blockers}"); Sunny stops re-looping that item, records it as a `needs-attention` notification, and continues (only hard-stopping if it gates a hard dependency).
 - **Fresh run resets counters.** On a brand-new intake Maya resets all counters to 0; mid-run, counters are never reset (so a stage cannot dodge its cap by restarting).
 
 ## Task launch template
@@ -477,8 +490,9 @@ If you changed code/config: run `graphify update <project-root>` before returnin
 
 - Announce phase transitions: "Sunny: Starting backend verification (iteration 2/5)..."
 - On loop exit: quote the exact verdict line.
-- On blocked: list blockers from `state.json` and ask user how to proceed.
-- On complete: deliver run guide, architecture diagram summary, and links to key files.
+- On needs-attention: note the stage was capped/deferred, surface the items as notifications (they appear on the local + fleet dashboards), and continue — do not halt.
+- On blocked (hard dependency only): list blockers from `state.json` and ask the user how to proceed.
+- On complete: deliver run guide, architecture diagram summary, links to key files, and any outstanding `needs-attention`/`actionRequired` items.
 
 ## Do not
 
@@ -486,4 +500,4 @@ If you changed code/config: run `graphify update <project-root>` before returnin
 - Accept partial verdicts — the exit phrases must match exactly.
 - Generate monolithic JHipster apps.
 - Allow mock/fake data in the backend.
-- Stop before production-standards-agent runs (unless blocked).
+- Stop before production-standards-agent runs only when a **hard technical dependency** makes continuing impossible (default: keep going and collect outstanding items in the final report).

@@ -107,7 +107,7 @@ Define entities, fields, validations, enums, relationships, `paginate`, `service
 - Wire `docker-compose.yml`, `application-prod.yml`, and registry config to read these as `${VAR}` env vars (e.g. `POSTGRES_PASSWORD`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`). **No secret literals** in committed files.
 - The gateway/services JWT secret must come from `${JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET}` and be **shared** across gateway + microservices so tokens validate.
 - If a key your stack needs is missing from `.env`, **append it (generating a strong secret via `openssl rand`)** rather than inventing a weak default — and never print the value. Confirm `.env` stays gitignored. Tell Maya the **key name** so she registers it in `state.json.envKeys`. You are **never blocked** on an internal secret — just add it.
-- For an **external** credential you cannot mint (a third-party provider API key / OAuth client secret), do **not** fake it: add the key with a `__set-me__` placeholder, feature-flag the integration off (or use a documented sandbox key) so the stack still boots, and report it to Maya as a **blocker** (per the orchestrator "Secrets protocol"). Only hard-stop if the backend genuinely cannot run without it.
+- For an **external** credential you cannot mint (a third-party provider API key / OAuth client secret), do **not** fake it: add the key with a `__set-me__` placeholder, feature-flag the integration off (or use a documented sandbox key) so the stack still boots, and report it to Maya as a **`needs-input` notification** (`actionRequired`) — the run continues; only hard-stop if the backend genuinely cannot run without it.
 
 ## Production-readiness checklist (must address all)
 

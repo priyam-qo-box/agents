@@ -499,8 +499,13 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 - **Intake → before Nginx:** a tiny static publisher serves it at `http://<server-ip>:8787/agentprogress.html`.
 - **Nginx stage → done:** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS and the early publisher is retired.
+- **Action required:** items only the user can provide (e.g. an external provider key) render on a dedicated card; the run keeps going while waiting.
 
-`state.json` carries the `project` block, `workflowStartedAt`, and a `stages[]` array (status + timing + iterations) that the dashboard derives from.
+`state.json` carries the `project` block (+ `runId`/`vps`/`localDashboardUrl`/`centralUrl`), `workflowStartedAt`, and a `stages[]` array (status + timing + iterations) that the dashboard derives from.
+
+**Fleet / global dashboard (optional).** Each VPS run is independent; if `CENTRAL_DASHBOARD_URL` + `CENTRAL_PUSH_TOKEN` are set, Maya pushes this run's `progress.json` to a central collector after every handoff, so every run shows on one global board at `https://<central-domain>/`. Deploy the collector from `.cursor/central/` (best-effort push — a down central never blocks a run).
+
+**Non-blocking by default.** Loops keep their hard iteration cap, but when a loop gives up or an external value is missing, the item becomes a `needs-attention`/`actionRequired` notification and the pipeline continues; only a hard technical dependency causes a real stop.
 
 ---
 
@@ -510,13 +515,13 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 1. **Clone on the VPS**, copy or symlink `.cursor/` into your project, bootstrap Graphify (`graphify .`). You don't need to create `.env` — Maya auto-generates it with strong secrets at intake (copy `.env.example` → `.env` only to override values).
 
-2. **Invoke Sunny** in a Cursor chat, with **domain + Certbot email** at kickoff:
+2. **Invoke Sunny** — **two domains only** (same fleet domain on every VPS):
 
-   > Sunny, build the JHipster microservices backend for the frontend in `./frontend` and use the domain `example.com` (admin@example.com).
+   > Sunny, build the JHipster microservices backend for the frontend in `./frontend`. Project domain: `example.com`. Fleet domain: `fleet.example.com`.
 
 3. The main agent loads `../rules/sunny-orchestrator.mdc` and drives the workflow:
-   - Analyzes the frontend and runs intake through the Context Agent (seeds `.sunny/web/` dashboard).
-   - Starts the early progress publisher → `http://<server-ip>:8787/agentprogress.html`.
+   - Intake via Context Agent: full `.env`, fleet token fetch, `RUN_ID`, dashboard seed, first fleet push.
+   - Starts the early progress publisher → `http://<server-ip>:8787/agentprogress.html`; prints fleet URL + `runId` if configured.
    - Generates the backend, then loops verify ↔ fix until approved.
    - …through database, Nginx (dashboard moves to `https://<domain>/agentprogress.html`), tests, docs/API, production.
 
@@ -524,7 +529,9 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 5. **Push/pull via GitHub:** commit source + `.cursor/`; never commit `.env`, `.sunny/`, `node_modules/`, `target/`, or certs. On VPS after `git pull`, rebuild/restart changed services (`docker compose up -d --build`).
 
-6. **On completion**, Sunny delivers a summary: architecture, services, coverage, security posture, and a run guide. On a blocked loop, Sunny lists the blockers and asks how to proceed.
+6. **On completion**, Sunny delivers a summary: architecture, services, coverage, security posture, and a run guide. Outstanding `needs-attention` items are listed; the run does not halt on them by default.
+
+**Many VPSs:** clone or symlink the **same** `.cursor/` on each machine; deploy `.cursor/central/` once on your fleet domain. See [INSTALL.md](../../INSTALL.md) Pattern C and [`.cursor/central/README.md`](../central/README.md).
 
 ---
 

@@ -32,12 +32,14 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 - **17 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
 - **Pipeline order:** architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
-- **Domain at intake:** the user provides a single **domain** + **Certbot email** at kickoff (`/` → frontend, `/api` → gateway); Naveen uses them at the Nginx stage.
+- **Domain at intake:** the user provides **project domain + fleet domain** only; agents derive `ACME_EMAIL` (`admin@<project-domain>` by default), all secrets, fleet URL, and push token (fetched from `/api/fleet-config`).
 - **Secrets auto-generated:** at intake Maya creates a gitignored root `.env` with strong random secrets (PostgreSQL, JWT, registry); no human writes secrets and values are never logged. Downstream agents consume them as `${VAR}` and never hardcode literals.
-- **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend.
+- **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend. "Action required" asks (e.g. an external key) surface here without halting the run.
+- **Fleet / global dashboard:** every VPS uses the **same** `.cursor/` agents but runs **independently** (own project, domain, `.env`, `RUN_ID`). Each optionally **pushes** progress to a central collector (`.cursor/central/`, deployed once), so all runs show on one global board at `https://<central-domain>/` — one card per run, best-effort, never blocking.
+- **Non-blocking by default:** loops still have a hard iteration cap, but when a loop gives up or an external value is missing, it becomes a `needs-attention`/`actionRequired` **notification** and the pipeline continues; only a hard technical dependency causes a real stop.
 - **Service lifecycle:** the stack runs via Docker Compose; code/config-changing agents rebuild + restart the affected services (`docker compose up -d --build <service>`), Nginx uses graceful reload, and testing stages run against a fresh, healthy stack. The dashboard survives every restart (decoupled static mount + separate publisher).
 - **Production agent** audits every prior stage's completeness (do's and don'ts) and emits one comprehensive final report.
-- **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
+- **Every loop:** independent exit phrase + iteration counter, capped at **5** — then `needs-attention` notifications and continue by default (hard stop only on a technical dependency).
 - **One writer of shared memory:** `context-agent` owns `.sunny/context/` and `.sunny/web/`.
 
 ### Agent codenames
@@ -274,7 +276,7 @@ The strict call order with all loops and their exact exit phrases.
 
 ```mermaid
 flowchart TD
-    Start(["Frontend Input<br/>+ domain + Certbot email"]) --> Intake["Intake<br/>context-agent creates<br/>project-context.md + state.json<br/>+ seeds .sunny/web dashboard<br/>+ auto-generates .env secrets"]
+    Start(["Frontend Input<br/>+ project domain + fleet domain"]) --> Intake["Intake<br/>context-agent: .env secrets<br/>fleet token fetch, RUN_ID<br/>dashboard + fleet push"]
     Intake --> Pub["Early publisher<br/>http://server-ip:8787/agentprogress.html"]
 
     Intake --> AGen[architecture-agent]
@@ -567,11 +569,11 @@ flowchart TD
 1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
 2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
 3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; `productionVerifyIterations`).
-4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, Sunny sets `phase: "blocked"`, stops, and hands the remaining blockers to the user — never an infinite loop.
+4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, the loop stops iterating (never an infinite loop). By default the pipeline does **not** halt — the stage is marked `needs-attention`, remaining items become notifications on the local + fleet dashboards, and Sunny continues to the next stage wherever technically possible; only a hard technical dependency causes a real `blocked` stop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
-7. **Deadlock guard.** "Not satisfied" with an **empty findings table** is treated as blocked immediately (no fix agent is launched with no work) — escalate instead of looping uselessly.
-8. **No-progress guard.** If two consecutive cycles show no net reduction in open findings (same/greater count or identical IDs persisting), Maya blocks early — catching oscillation (fix-A-breaks-B) before the cap.
+7. **Deadlock guard.** "Not satisfied" with an **empty findings table** never launches a fix agent (no work) — the stage is marked `needs-attention` and the run continues instead of looping uselessly.
+8. **No-progress guard.** If two consecutive cycles show no net reduction in open findings (same/greater count or identical IDs persisting), Maya stops that loop early — catching oscillation (fix-A-breaks-B) before the cap — marks `needs-attention`, and continues.
 9. **Counter-integrity backstop.** Maya increments the counter every verify run; Sunny independently counts launches, so a stuck/missing counter can never disable the cap.
 10. **Exact phrase only.** Near-miss verdicts (typos, extra words) never advance; the verify agent is asked to re-emit the exact phrase.
 
@@ -626,7 +628,7 @@ sequenceDiagram
     participant P as Production Standards
     participant PF as Production Fix
 
-    U->>S: Frontend + requirements + domain + Certbot email
+    U->>S: Frontend + requirements + project domain + fleet domain
     S->>C: Intake (project-context.md, state.json, seed .sunny/web dashboard, generate .env secrets)
     S->>U: Start early publisher -> http://server-ip:8787/agentprogress.html
 

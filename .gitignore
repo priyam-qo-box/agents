@@ -37,6 +37,12 @@ acme/
 # .cursor/dashboard/. They are machine/run-specific — do not commit.
 .sunny/
 
+# ----- Fleet collector runtime data (central host only) ----------------------
+# Pushed run snapshots stored by .cursor/central/collector.py — runtime state.
+.cursor/central/data/
+.cursor/central/data/fleet_push.token
+.cursor/central/test-data/
+
 # ----- Graphify knowledge graph (regenerated locally, no token cost) ---------
 graphify-out/
 

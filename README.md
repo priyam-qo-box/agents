@@ -20,6 +20,13 @@ This repository contains **agent definitions and orchestration rules** for Curso
 │   ├── progress.json
 │   ├── docker-compose.yml
 │   └── nginx-progress.conf
+├── central/                        # Fleet (global) dashboard — deploy on a central domain
+│   ├── collector.py                # Dependency-free push collector (token-auth)
+│   ├── global.html                 # One board for all independent VPS runs
+│   ├── Dockerfile
+│   ├── docker-compose.yml          # Collector + Nginx/TLS
+│   ├── nginx-central.conf
+│   └── README.md
 └── agents/
     ├── README.md                          # Deep dive on how the Sunny system works
     ├── ARCHITECTURE.md                    # All architecture + workflow diagrams
@@ -247,9 +254,9 @@ These agents run inside **Cursor**. The `.cursor/agents/*.md` files are picked u
 
 In a Cursor chat, invoke Sunny and point it at your frontend:
 
-> Sunny, build the JHipster microservices backend for the frontend in `./frontend` and use the domain `example.com` (admin@example.com).
+> Sunny, build the JHipster microservices backend for the frontend in `./frontend`. Project domain: `mememates.org`. Fleet domain: `fleet.example.com`.
 
-Provide your **domain** and a **Certbot email** at kickoff — Sunny captures them at intake and Naveen uses them to connect the frontend + gateway to the domain over HTTPS. **You don't create `.env` or pick passwords:** Maya auto-generates the root `.env` with strong secrets (PostgreSQL, JWT, registry) at intake and never commits them. Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
+Provide **only** the **project domain** and **fleet domain** at kickoff — agents generate `.env` secrets, fetch the fleet push token, configure dashboards, and wire Nginx/Certbot. Optional: add a Certbot email; otherwise agents use `admin@<project-domain>`. Sunny will analyze the frontend, design the architecture, generate the backend, harden the database, configure Nginx + SSL on the domain (Certbot), run the backend and frontend testing loops, run collective system integration tests across the whole stack, produce and verify the documentation & API stages (Swagger, Javadoc, Postman collection, API status tests, and API performance at 1/10/20/30 concurrency), and finish with a production audit that reviews every prior stage and emits a comprehensive final report — announcing each phase and iteration as it goes. Progress and intermediate summaries are written to `.sunny/context/`.
 
 ### Watch live progress
 
@@ -258,7 +265,15 @@ From the **first** agent, Sunny serves a live dashboard showing completed/pendin
 - **Early (intake → before Nginx):** a tiny static publisher → `http://<server-ip>:8787/agentprogress.html`.
 - **From the Nginx stage onward:** the same page on your domain over HTTPS → `https://<domain>/agentprogress.html` (the early publisher is retired).
 
-The dashboard is a read-only artifact under `.sunny/web/` — it never touches the generated backend. Maya (the Context Agent) rewrites `.sunny/web/progress.json` after every agent handoff.
+The dashboard is a read-only artifact under `.sunny/web/` — it never touches the generated backend. Maya (the Context Agent) rewrites `.sunny/web/progress.json` after every agent handoff. When a run needs something only you can provide (e.g. an external provider API key), it shows up as an **"Action required"** card — the run keeps going; you add the value to `.env` and that stage picks it up.
+
+### Fleet view across many VPSs (optional)
+
+Run Sunny on as many VPSs as you like — each is fully independent with its own local dashboard. Deploy the collector in [`.cursor/central/`](.cursor/central/README.md) once on your **fleet domain** (domain + email only). On each worker, give Sunny **project domain + fleet domain** — Maya fetches the push token and pushes after every handoff. `https://<fleet-domain>/` shows one card per run.
+
+### Nothing silently stalls (non-blocking)
+
+Every verify/fix loop keeps its hard iteration cap, but the pipeline **notifies instead of halting**: when a loop gives up or an external value is missing, the item becomes a `needs-attention`/`action-required` notification on the local + fleet dashboards and Sunny continues to the next stage wherever technically possible. Only a hard technical dependency (e.g. the backend won't build) causes a real stop. Outstanding items are collected in the final production report.
 
 ### Restarts (so changes take effect)
 

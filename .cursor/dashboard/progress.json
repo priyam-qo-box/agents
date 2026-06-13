@@ -1,6 +1,10 @@
 {
   "schema": 1,
-  "project": { "name": "", "domain": "" },
+  "runId": "",
+  "project": { "name": "", "domain": "", "fleetDomain": "" },
+  "vps": "",
+  "localDashboardUrl": "",
+  "centralUrl": "",
   "generatedAt": "1970-01-01T00:00:00Z",
   "workflowStartedAt": "1970-01-01T00:00:00Z",
   "status": "running",
@@ -13,6 +17,7 @@
   "estimatedRemainingMs": 0,
   "eta": "",
   "viewUrl": "",
+  "actionRequired": [],
   "blockers": [],
   "stages": [
     { "key": "intake", "label": "Intake", "status": "active", "startedAt": "", "endedAt": "", "durationMs": 0, "iterations": 0, "verdict": "" },

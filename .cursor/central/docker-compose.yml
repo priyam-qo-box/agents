@@ -1,0 +1,40 @@
+# Sunny fleet collector + Nginx/TLS — deploy on your CENTRAL/global domain.
+#
+#   cp .env.example .env   # set CENTRAL_DOMAIN, ACME_EMAIL, COLLECTOR_TOKENS
+#   docker compose up -d --build
+#   # issue the cert once (see README), then: docker compose exec nginx nginx -s reload
+#
+# Result: https://<CENTRAL_DOMAIN>/            -> fleet dashboard (global.html)
+#         https://<CENTRAL_DOMAIN>/api/runs    -> JSON feed (public, read-only)
+#         POST   https://<CENTRAL_DOMAIN>/api/runs/<runId>  (Bearer token) <- each VPS pushes
+
+services:
+  collector:
+    build: .
+    restart: unless-stopped
+    environment:
+      CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:?set CENTRAL_DOMAIN in .env}
+      COLLECTOR_TOKENS: ${COLLECTOR_TOKENS:-}
+      STALE_AFTER_MIN: ${STALE_AFTER_MIN:-15}
+    volumes:
+      - collector-data:/data
+    expose:
+      - "8080"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - collector
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CENTRAL_DOMAIN: ${CENTRAL_DOMAIN:?set CENTRAL_DOMAIN in .env}
+    volumes:
+      - ./nginx-central.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./letsencrypt:/etc/letsencrypt
+      - ./acme:/var/www/acme
+
+volumes:
+  collector-data:

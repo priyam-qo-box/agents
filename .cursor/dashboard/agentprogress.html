@@ -48,6 +48,7 @@
     .status-running { color: var(--active); border-color: color-mix(in srgb, var(--active) 50%, var(--border)); }
     .status-complete { color: var(--done); border-color: color-mix(in srgb, var(--done) 50%, var(--border)); }
     .status-blocked { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 50%, var(--border)); }
+    .status-needs-attention { color: var(--active); border-color: color-mix(in srgb, var(--active) 50%, var(--border)); }
     .status-stale { color: var(--muted); }
 
     .bar-wrap { margin: 18px 0 22px; }
@@ -71,17 +72,20 @@
     tr:last-child td { border-bottom: 0; }
     tr.row-active td { background: color-mix(in srgb, var(--active) 10%, transparent); }
     tr.row-blocked td { background: color-mix(in srgb, var(--blocked) 12%, transparent); }
+    tr.row-needs-attention td { background: color-mix(in srgb, var(--active) 10%, transparent); }
     td.num { text-align: right; color: var(--muted); }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 9px; vertical-align: baseline; }
     .dot.done { background: var(--done); }
     .dot.active { background: var(--active); box-shadow: 0 0 0 0 color-mix(in srgb, var(--active) 70%, transparent); animation: pulse 1.6s infinite; }
     .dot.blocked { background: var(--blocked); }
+    .dot.needs-attention { background: var(--active); }
     .dot.pending { background: var(--pending); }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--active) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
     .st { color: var(--muted); font-size: 12px; }
     .st.done { color: var(--done); }
     .st.active { color: var(--active); }
     .st.blocked { color: var(--blocked); }
+    .st.needs-attention { color: var(--active); }
 
     .blockers { margin-top: 18px; border-color: color-mix(in srgb, var(--blocked) 45%, var(--border)); }
     .blockers h2 { color: var(--blocked); }
@@ -240,7 +244,7 @@
           if (st === "active" && ms(s.startedAt)) dur = now - ms(s.startedAt);
           var durTxt = (st === "pending") ? "—" : fmtDur(dur);
           var iters = (s.iterations != null && s.iterations > 0) ? s.iterations : "—";
-          var rowCls = st === "active" ? " class='row-active'" : (st === "blocked" ? " class='row-blocked'" : "");
+          var rowCls = st === "active" ? " class='row-active'" : (st === "blocked" ? " class='row-blocked'" : (st === "needs-attention" ? " class='row-needs-attention'" : ""));
           return "<tr" + rowCls + ">"
             + "<td class='num'>" + (i + 1) + "</td>"
             + "<td><span class='dot " + st + "'></span>" + esc(s.label || s.key) + "</td>"
@@ -252,9 +256,11 @@
         $("stageBody").innerHTML = rows;
       }
 
-      // Blockers — split "needs-input" (asks for details) from generic blockers
+      // Blockers — split "needs-input" (asks for details) from generic blockers.
+      // Asks come from the dedicated actionRequired array and/or blockers tagged needs-input.
       var blockers = Array.isArray(data.blockers) ? data.blockers : [];
-      var asks = [], errs = [];
+      var asks = Array.isArray(data.actionRequired) ? data.actionRequired.slice() : [];
+      var errs = [];
       blockers.forEach(function (b) {
         if (b && typeof b === "object" && (b.kind === "needs-input" || b.key)) asks.push(b);
         else errs.push(b);
