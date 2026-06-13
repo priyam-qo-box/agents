@@ -56,6 +56,20 @@ The system runs as a Docker Compose stack (PostgreSQL + JHipster **registry + ga
   - Maya keeps rewriting `progress.json` regardless of stack state, so progress stays visible even while services are restarting (the page shows the live clock and last-known stages).
 - After any restart that changed code, the responsible code-changing agent still runs `graphify update <project-root>` (unchanged from the Graphify policy).
 
+## Secrets protocol (append-as-needed — no agent gets blocked)
+
+Maya generates the base `.env` at intake, but the set of secrets is **not frozen**. Any stage may discover it needs a new secret/env var (a new service password, an internal signing key, a cache/broker credential, etc.). The rule is **self-service, append-only**:
+
+- **If an agent can generate the value itself** (any internal secret — passwords, tokens, signing keys), it **appends the key to `.env` with a strong value** (`openssl rand -base64 32`, or `64` for JWT/long keys) and wires config to read it as `${VAR}`. It does **not** wait, ask, or block. Rules: never overwrite an existing key (idempotent), never print the value, keep `.env` gitignored, and tell Maya the **key name** so she records it in `state.json.envKeys` (names only, never values).
+- **If the value can only come from a human** (an *external* third-party credential the agent cannot mint — e.g. a payment/email/OAuth **provider** API key or client secret), the agent:
+  1. adds the key to `.env` / `.env.example` with a clear placeholder (e.g. `STRIPE_API_KEY=__set-me__`),
+  2. uses a safe fallback so the stack still builds/boots where possible (feature-flag the integration off, or use a provider sandbox/test key if one is documented),
+  3. raises a **blocker** via Maya (`state.json.blockers[]`) naming the exact key and where to get it — **but only hard-blocks the pipeline if that secret is strictly required for the current stage to proceed.** Otherwise the run continues and the blocker is surfaced on the dashboard and in the final production report.
+- **Never invent or fake an external credential** and never commit a real one. A `__set-me__` placeholder for an external key is acceptable and expected; a weak/placeholder value for an *internal* secret is a finding.
+- Verifiers/auditors treat a missing **internal** secret as "the responsible agent should have appended it" (actionable finding), and a missing **external** secret as a tracked blocker (not an agent failure).
+
+So the answer to "do they get blocked?": **no for internal secrets** (the agent just adds them), and **only for external provider keys that are mandatory for that stage** — and even then it's an explicit, surfaced blocker, not a silent stall.
+
 ## Agent registry
 
 | Agent | subagent_type / file | readonly |

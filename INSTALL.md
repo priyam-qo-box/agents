@@ -343,6 +343,8 @@ docker compose -f .sunny/web/docker-compose.yml up -d
 | **Wrapper jars missing after clone** | `.gitignore` explicitly **keeps** `maven-wrapper.jar` / `gradle-wrapper.jar`. |
 | **JHipster `.jhipster/*.json` ignored** | `.gitignore` keeps `!**/.jhipster/` — entity JSON is source. |
 | **Accidentally committed `.env`** | `git rm --cached .env`, rotate all secrets, ensure `.gitignore` is in place. |
+| **An agent needs a new secret mid-run** | Internal secrets (passwords, signing keys) are **self-service**: the agent appends them to `.env` with `openssl rand` and registers the key name with Maya — no blocking. |
+| **A third-party provider key is required** | The agent can't mint it: it adds a `__set-me__` placeholder, flags the integration off, and surfaces a **blocker** (dashboard + final report). You supply the real key in `.env` and re-run that stage. |
 | **Disk full from Docker** | Periodic `docker system prune -af` (careful) + adequate disk per §3. |
 
 ---

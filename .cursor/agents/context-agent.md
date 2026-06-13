@@ -120,6 +120,7 @@ Always read and update `state.json` on every invocation:
   "maxIterations": 5,
   "lastVerdict": "",
   "blockers": [],
+  "envKeys": [],
   "completedAgents": [],
   "graphUpdatedAt": "ISO-8601 timestamp of last graphify update",
   "stages": [
@@ -269,6 +270,11 @@ At intake you create the project's root `.env` so the operator never has to hand
 - **Minimum keys to ensure exist** (generate if missing): `DOMAIN`, `ACME_EMAIL`, `PROGRESS_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `SPRING_PROFILES_ACTIVE`, `JHIPSTER_SECURITY_AUTHENTICATION_JWT_BASE64_SECRET`, `JHIPSTER_REGISTRY_PASSWORD`. (Frontend `VITE_API_URL`/`REACT_APP_API_URL` and optional `DASHBOARD_AUTH_*` are set/extended later by Naveen.)
 
 Downstream agents (Vikram, Naveen, the test stages) **consume** these env vars and must reference them as `${VAR}` in `docker-compose`/config — they must never hardcode secret literals or regenerate the ones you created.
+
+**You are the secrets registrar (key names only).** The secret set is **not frozen** — any later stage may append a new env var to `.env` (see the "Secrets protocol" in the orchestrator rule). When an agent reports it added a key:
+
+- Record the **key name** in `state.json.envKeys` (e.g. `["POSTGRES_PASSWORD","JHIPSTER_...","REDIS_PASSWORD"]`) — **names only, never values**. At intake, seed `envKeys` with the keys you generated.
+- If an agent reports it needs an **external** credential it cannot generate (a provider API key/OAuth client secret), add a `blockers[]` entry naming the exact key and where to obtain it, set `phase: "blocked"` **only if** the agent says that stage cannot proceed without it, and surface it in `progress.json`. Internal secrets the agent already appended are **not** blockers — just register the key name.
 
 ## Required workflow
 

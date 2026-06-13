@@ -59,6 +59,7 @@ graphify install
 
 - **Domain + Certbot email (at intake):** provide a single **domain** (`https://<domain>/` → frontend, `https://<domain>/api` → gateway) and a **Certbot/ACME email**. Sunny captures them at intake; Naveen uses them at the Nginx stage. If omitted, Sunny asks before the Nginx stage.
 - **Secrets are automatic:** you do **not** supply DB passwords or JWT secrets. Maya generates a gitignored `.env` with strong secrets at intake; provide your own only if you want to override (pre-create `.env` and Maya keeps your values).
+- **New secrets mid-run don't block agents:** any **internal** secret a later stage needs is appended to `.env` on the fly (strong `openssl` value, key name registered with Maya). Only an **external** third-party provider key (one no agent can mint) becomes a surfaced **blocker** — you drop it into `.env` and re-run that stage.
 - **Live progress dashboard (from agent #1):** completed/pending stages, current phase, time consumed, estimated total, time remaining — auto-refreshing every 5 minutes.
   - Early (intake → before Nginx): `http://<server-ip>:8787/agentprogress.html` (tiny static publisher).
   - From the Nginx stage on: `https://<domain>/agentprogress.html` over HTTPS (publisher retired).
