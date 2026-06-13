@@ -32,6 +32,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ## Required workflow
 
+0. **Ensure a fresh, healthy stack**: rebuild + restart the affected services (`docker compose up -d --build`) and wait for readiness so results reflect current code.
 1. **Enumerate** every endpoint from the OpenAPI spec/collection.
 2. **Happy path** — for each, send a valid request and assert the documented success status (and basic body shape).
 3. **Negative paths** — assert `400` (invalid body), `401` (no/expired token), `403` (insufficient role), `404` (missing resource), `409` (conflict) where applicable.

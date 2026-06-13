@@ -253,6 +253,16 @@ From the **first** agent, Sunny serves a live dashboard showing completed/pendin
 
 The dashboard is a read-only artifact under `.sunny/web/` — it never touches the generated backend. Maya (the Context Agent) rewrites `.sunny/web/progress.json` after every agent handoff.
 
+### Restarts (so changes take effect)
+
+The whole system runs as a Docker Compose stack (PostgreSQL + registry + gateway + microservices + frontend + Nginx). Code/config changes only apply once the affected services are rebuilt and restarted, so:
+
+- Backend/database changes → rebuild + restart the affected services (`docker compose up -d --build <service>`) and re-apply migrations.
+- The **frontend** is rebuilt + restarted when its API base URL moves to the domain (`/api`) at the Nginx stage.
+- **Nginx** uses a **graceful reload** (`nginx -t && nginx -s reload`) — zero downtime.
+- The system-integration, API-test, and API-performance stages run against a **freshly (re)started, healthy** stack.
+- The **dashboard keeps running through every restart** — the early publisher is a separate container, Nginx reloads gracefully, and `.sunny/web` is a static mount, so you never lose progress visibility.
+
 ### Run the documentation agent (standalone)
 
 > Use the documentation agent to fully document this backend — Swagger, Postman, and Javadoc.

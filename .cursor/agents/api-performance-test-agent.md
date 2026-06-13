@@ -33,6 +33,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ## Required workflow
 
+0. **Ensure a fresh, healthy stack**: rebuild + restart services (`docker compose up -d --build`) and wait for readiness, so latency/throughput reflect current code (a cold or stale stack skews results).
 1. **Select scenarios** — critical endpoints (auth, primary reads, primary writes, a gateway-routed cross-service call).
 2. **Author load scripts** parameterized by concurrency (1, 10, 20, 30).
 3. **Define thresholds** — e.g. error rate `0%` for non-overload levels, p95 under an agreed budget (default: p95 ≤ 800ms at ≤20 VUs; no 5xx; no connection failures). Record defaults as assumptions if not specified.

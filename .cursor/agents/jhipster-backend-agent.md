@@ -152,6 +152,7 @@ Return a structured summary (do not write files in `.sunny/context/` yourself):
 3. Start microservices
 4. Start gateway
 5. Point frontend at gateway URL
+6. **Build + start (and restart after changes):** `docker compose up -d --build` to (re)build and launch the stack; wait for health checks before testing. After later code/config edits, rebuild + restart only the affected service (`docker compose up -d --build <service>`).
 
 ### Assumptions & defaults
 - {list}

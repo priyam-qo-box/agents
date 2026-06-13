@@ -63,6 +63,12 @@ The Sunny pipeline shows a live progress dashboard. During earlier stages it is 
 - **Retire the early publisher** so its port (8787) and port 80 are free for Certbot/Nginx: `docker compose -f .sunny/web/docker-compose.yml down` (or stop the `python -m http.server` fallback). Sunny coordinates the stop; ensure your config does not conflict with it.
 - The page is **public by default** (per project requirement). If the operator wants it private, document an optional Basic-Auth (`auth_basic` + `htpasswd`) on the two locations — do not enable it unless asked.
 
+### Restart / reload behavior (apply changes safely)
+
+- **Point the frontend at the domain:** ensure the frontend is built/configured to call the API via `https://<domain>/api` (production API base URL), then **rebuild + restart the frontend** (`docker compose up -d --build <frontend>`) so it stops calling localhost/dev URLs.
+- **Bring up the edge:** `docker compose up -d nginx` to add/refresh the Nginx (and certbot) services. For later config-only changes, prefer a **graceful reload** — `docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload` — so there is **zero downtime** and the dashboard never drops.
+- **Dashboard survives restarts:** because `.sunny/web` is a read-only static mount, reloading/restarting the frontend, gateway, or services never interrupts `agentprogress.html` / `progress.json`. Verify the dashboard still serves after the cutover.
+
 ## Required workflow
 
 1. **Map** upstreams (frontend, gateway) — host, port, context path — from the graph and config.

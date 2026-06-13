@@ -32,6 +32,30 @@ A web dashboard shows run progress (completed/pending stages, current phase, tim
 - **Domain (Stage 5 → done):** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS and Sunny stops the early publisher.
 - The page hard-refreshes every 5 minutes and polls `progress.json` every 60s.
 
+## Service lifecycle & restarts
+
+The system runs as a Docker Compose stack (PostgreSQL + JHipster **registry + gateway + microservices** + **frontend** + **Nginx**). Code/config changes only take effect when the affected services are rebuilt and restarted, so every stage that changes runtime artifacts must refresh the stack before the next verify/test stage relies on it.
+
+- **Rebuild + restart only what changed** (avoid full-stack churn):
+  ```bash
+  docker compose up -d --build <service>     # e.g. gateway, order-service, frontend
+  docker compose restart <service>            # config-only change, no rebuild
+  ```
+- **Backend / database changes** (`jhipster-backend-agent`, `issue-resolution-agent`, `database-agent`, `database-fix-agent`): after edits, rebuild + restart the affected services and re-apply Liquibase migrations so the next verify/test sees the real, current state.
+- **Frontend changes / new API base URL:** rebuild + restart the frontend so it calls the API through the domain (`/api`). Naveen's stage is when the frontend is pointed at the public domain.
+- **Nginx changes:** prefer a **graceful reload** (zero downtime) over a restart:
+  ```bash
+  docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+  # or, if the service/compose definition changed:
+  docker compose up -d nginx
+  ```
+- **Testing stages run against a fresh, healthy stack.** Before system integration (3C), API tests (3G), and API performance (3H), ensure the full stack is (re)started and **healthy** (wait for health checks / readiness) so results reflect current code. Tear down and recreate if state is dirty (`docker compose down && docker compose up -d --build`).
+- **The dashboard survives every restart.** `.sunny/web` is a static, read-only mount and the progress feed is decoupled from the app:
+  - The **early publisher** is a separate container — restarting frontend/backend never affects it.
+  - Once Naveen owns the edge, an Nginx **reload** keeps serving `agentprogress.html` + `progress.json` with no downtime.
+  - Maya keeps rewriting `progress.json` regardless of stack state, so progress stays visible even while services are restarting (the page shows the live clock and last-known stages).
+- After any restart that changed code, the responsible code-changing agent still runs `graphify update <project-root>` (unchanged from the Graphify policy).
+
 ## Agent registry
 
 | Agent | subagent_type / file | readonly |

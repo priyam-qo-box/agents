@@ -40,6 +40,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
    - Apply the fix: add constraints/indexes, new Liquibase changesets, tune HikariCP, externalize secrets, remove mock loaders.
    - Confirm migrations still apply on a fresh PostgreSQL.
 3. **Validate** before handoff: migrations apply cleanly (Testcontainers acceptable); app boots with the prod-like profile; no anti-patterns remain.
+4. **Apply changes to the running stack**: rebuild + restart the affected services and re-apply migrations (`docker compose up -d --build <service>`) so the re-audit and downstream tests run against the current schema.
 
 ## Do not
 

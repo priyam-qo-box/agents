@@ -34,6 +34,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
 - **Domain at intake:** the user provides a single **domain** + **Certbot email** at kickoff (`/` → frontend, `/api` → gateway); Naveen uses them at the Nginx stage.
 - **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend.
+- **Service lifecycle:** the stack runs via Docker Compose; code/config-changing agents rebuild + restart the affected services (`docker compose up -d --build <service>`), Nginx uses graceful reload, and testing stages run against a fresh, healthy stack. The dashboard survives every restart (decoupled static mount + separate publisher).
 - **Production agent** audits every prior stage's completeness (do's and don'ts) and emits one comprehensive final report.
 - **Every loop:** independent exit phrase + iteration counter, capped at **5** before escalating.
 - **One writer of shared memory:** `context-agent` owns `.sunny/context/` and `.sunny/web/`.

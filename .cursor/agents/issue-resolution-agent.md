@@ -65,6 +65,7 @@ For each finding `F00N`:
 - `./mvnw verify` or `./gradlew build` on affected services (at minimum compile + unit tests).
 - Grep confirms removed anti-patterns (no new `mock`/`fake`/`dummy` data loaders).
 - No secrets committed.
+- **Rebuild + restart the affected services** (`docker compose up -d --build <service>`) so the re-verification and later test stages run against the current code, not a stale container.
 
 ### 4. Do not
 

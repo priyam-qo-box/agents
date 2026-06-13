@@ -191,6 +191,16 @@ A web dashboard is visible from the **first** agent so the user can watch progre
 - **Intake → Stage 4:** you start a tiny static publisher (`docker compose -f .sunny/web/docker-compose.yml up -d`, or `python -m http.server 8787 --directory .sunny/web`) → `http://<server-ip>:8787/agentprogress.html`.
 - **Stage 5 → done:** Naveen serves the same page at `https://<domain>/agentprogress.html` over HTTPS; you stop the early publisher.
 
+## Service lifecycle & restarts
+
+The system runs as a Docker Compose stack (PostgreSQL + registry + gateway + microservices + frontend + Nginx). Code/config changes only apply after the affected services are rebuilt and restarted.
+
+- After backend/database changes, rebuild + restart the affected services (`docker compose up -d --build <service>`) and re-apply migrations before the next verify/test stage.
+- Rebuild + restart the **frontend** when its API base URL changes (Naveen points it at the domain `/api`).
+- For Nginx, prefer a **graceful reload** (`nginx -t && nginx -s reload`) over a restart — zero downtime.
+- Before system integration, API tests, and API performance, ensure the **full stack is freshly (re)started and healthy**.
+- The **dashboard survives every restart**: `.sunny/web` is a static read-only mount, the early publisher is a separate container, Nginx reloads gracefully, and Maya keeps writing `progress.json` — so progress stays visible even while services restart.
+
 ## Operating instructions
 
 1. **Intake:** Understand the frontend path, user requirements, and constraints. **Capture the deployment domain (single host) and Certbot email** the user provides at kickoff (ask once if missing — required before the Nginx stage). Ensure context-agent creates `project-context.md` (Deployment & domain), `state.json` (with `project`, `workflowStartedAt`, seeded `stages[]`), and the `.sunny/web/` dashboard bundle; then start the early progress publisher and share the URL.

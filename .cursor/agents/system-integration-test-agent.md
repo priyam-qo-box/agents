@@ -42,7 +42,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 ## Required workflow
 
-1. **Stand up the system**: define/confirm a Docker Compose (or equivalent) that boots registry, services, gateway, PostgreSQL, and serves the frontend.
+1. **Stand up a fresh system**: define/confirm a Docker Compose (or equivalent) that boots registry, services, gateway, PostgreSQL, and serves the frontend. Rebuild + restart so the latest code/config is live (`docker compose up -d --build`; recreate from clean if state is dirty) and **wait for health/readiness** before testing.
 2. **Derive scenarios** from `project-context.md` critical journeys that cross tiers (e.g. create via UI → verify persisted → appears after reload).
 3. **Write collective tests** that drive the real frontend/API and assert UI state, API responses, and DB persistence together.
 4. **Run** the suite against the running stack; capture pass/total and artifacts (traces, logs).
