@@ -1,0 +1,32 @@
+# Normalize line endings: you develop on Windows, the VPS runs Linux.
+# This prevents CRLF from breaking shell scripts, Docker entrypoints, and the
+# Maven/Gradle wrappers when the repo is cloned on the VPS.
+
+* text=auto eol=lf
+
+# Always LF (executed on Linux):
+*.sh        text eol=lf
+*.bash      text eol=lf
+mvnw        text eol=lf
+gradlew     text eol=lf
+Dockerfile  text eol=lf
+*.conf      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Windows-only helper scripts keep CRLF:
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+mvnw.cmd    text eol=crlf
+gradlew.bat text eol=crlf
+
+# Treat as binary (no EOL munging, no diff noise):
+*.jar       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.woff      binary
+*.woff2     binary

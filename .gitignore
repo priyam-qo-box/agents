@@ -1,0 +1,120 @@
+# ===========================================================================
+# Sunny multi-agent system — repository .gitignore
+#
+# Goal: commit the agent system (.cursor/**), the generated backend source,
+# the React frontend source, JHipster entity configs, and docs — while never
+# committing secrets, TLS material, runtime state, or build artifacts.
+#
+# Anything generated at runtime on the VPS (the .sunny/ store, the knowledge
+# graph, certificates, .env) is ignored so a clone stays clean and re-runnable.
+# ===========================================================================
+
+# ----- Secrets & environment -------------------------------------------------
+.env
+.env.*
+*.env
+!.env.example          # keep the template (no real secrets in it)
+secrets/
+*.secret
+credentials.json
+
+# ----- TLS / Certbot / Let's Encrypt (NEVER commit private keys) -------------
+letsencrypt/
+certbot/
+ssl/
+nginx/certs/
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+acme/
+.well-known/
+
+# ----- Sunny runtime state (regenerated each run) ----------------------------
+# Shared-memory store + live dashboard are seeded/written at runtime from
+# .cursor/dashboard/. They are machine/run-specific — do not commit.
+.sunny/
+
+# ----- Graphify knowledge graph (regenerated locally, no token cost) ---------
+graphify-out/
+
+# ----- Node / React (frontend + tooling: Newman, Playwright) -----------------
+node_modules/
+**/node_modules/
+.npm/
+.yarn/
+.pnp.*
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend build output (regenerated)
+dist/
+build/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+.turbo/
+.cache/
+.parcel-cache/
+.eslintcache
+
+# ----- Java / JHipster / Maven / Gradle --------------------------------------
+# Build output only — DO NOT ignore wrapper jars (mvnw/gradlew need them after clone).
+target/
+build/
+out/
+.gradle/
+*.class
+hs_err_pid*
+replay_pid*
+# Keep these (needed to build right after cloning):
+!**/maven-wrapper.jar
+!**/gradle-wrapper.jar
+# JHipster entity configs ARE source — keep them:
+!**/.jhipster/
+
+# ----- Test / coverage / reports ---------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+junit*.xml
+**/jacoco*.exec
+**/site/jacoco/
+
+# ----- Performance test output (k6 / JMeter / Gatling) -----------------------
+k6-results/
+*.jtl
+gatling-results/
+load-test-output/
+
+# ----- Logs & temp -----------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.pid
+
+# ----- OS / editor -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+*.iml
+*.iws
+
+# NOTE: .cursor/ is intentionally TRACKED (it is the agent system).
+# NOTE: .vscode/ — uncomment the next line if you do not want to share editor settings.
+# .vscode/

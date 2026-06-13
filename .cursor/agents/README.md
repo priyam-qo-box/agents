@@ -506,19 +506,25 @@ The user gives a **domain + Certbot email** at intake (single host: `/` → fron
 
 ## How to run it
 
-1. **Invoke Sunny** in a Cursor chat, pointing at your frontend:
+**Prerequisites:** install Java, Node, Docker, Graphify, and configure Git on your machine or VPS — see the repo root **[INSTALL.md](../../INSTALL.md)** (clone workflow, [`.gitignore`](../../.gitignore), [`.env.example`](../../.env.example), firewall, edge cases).
 
-   > Sunny, build the JHipster microservices backend for the frontend in `./frontend`.
+1. **Clone on the VPS**, copy or symlink `.cursor/` into your project, create `.env` from `.env.example`, bootstrap Graphify (`graphify .`).
 
-2. The main agent loads `../rules/sunny-orchestrator.mdc` and drives the workflow:
-   - Analyzes the frontend and runs intake through the Context Agent.
+2. **Invoke Sunny** in a Cursor chat, with **domain + Certbot email** at kickoff:
+
+   > Sunny, build the JHipster microservices backend for the frontend in `./frontend` and use the domain `example.com` (admin@example.com).
+
+3. The main agent loads `../rules/sunny-orchestrator.mdc` and drives the workflow:
+   - Analyzes the frontend and runs intake through the Context Agent (seeds `.sunny/web/` dashboard).
+   - Starts the early progress publisher → `http://<server-ip>:8787/agentprogress.html`.
    - Generates the backend, then loops verify ↔ fix until approved.
-   - Generates tests, then loops test ↔ verify until coverage is satisfied.
-   - Runs the final production audit.
+   - …through database, Nginx (dashboard moves to `https://<domain>/agentprogress.html`), tests, docs/API, production.
 
-3. **Watch progress** via Sunny's phase announcements (e.g. "Starting backend verification, iteration 2/5") and the contents of `.sunny/context/`.
+4. **Watch progress** via the live dashboard (above) and `.sunny/context/` reports.
 
-4. **On completion**, Sunny delivers a summary: architecture, services, coverage, security posture, and a run guide. On a blocked loop, Sunny lists the blockers and asks how to proceed.
+5. **Push/pull via GitHub:** commit source + `.cursor/`; never commit `.env`, `.sunny/`, `node_modules/`, `target/`, or certs. On VPS after `git pull`, rebuild/restart changed services (`docker compose up -d --build`).
+
+6. **On completion**, Sunny delivers a summary: architecture, services, coverage, security posture, and a run guide. On a blocked loop, Sunny lists the blockers and asks how to proceed.
 
 ---
 

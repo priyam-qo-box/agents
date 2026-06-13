@@ -16,10 +16,10 @@ This repository contains **agent definitions and orchestration rules** for Curso
 │   ├── sunny-orchestrator.mdc      # Executable playbook the orchestrator follows
 │   └── graphify.mdc                # Query-first context via graphify-out/ (token savings)
 ├── dashboard/                      # Live progress dashboard bundle (copied to .sunny/web/ at intake)
-│   ├── agentprogress.html          # Self-contained progress UI (auto-refresh every 5 min)
-│   ├── progress.json               # Seed/live progress feed Maya rewrites each handoff
-│   ├── docker-compose.yml          # Early publisher (nginx:alpine) — visible from agent #1
-│   └── nginx-progress.conf         # Early publisher static config
+│   ├── agentprogress.html
+│   ├── progress.json
+│   ├── docker-compose.yml
+│   └── nginx-progress.conf
 └── agents/
     ├── README.md                          # Deep dive on how the Sunny system works
     ├── ARCHITECTURE.md                    # All architecture + workflow diagrams
@@ -66,6 +66,11 @@ This repository contains **agent definitions and orchestration rules** for Curso
     ├── production-standards-agent.md      # Final audit of ALL prior outputs + comprehensive report (readonly)
     ├── production-fix-agent.md            # Remediates production audit findings
     └── documentation.md                   # Standalone: Swagger + Postman + Javadoc
+
+INSTALL.md                            # Prerequisites, VPS setup, Git workflow, edge cases
+.gitignore                            # Never commit secrets, .sunny/, builds, certs
+.gitattributes                        # LF line endings for Linux VPS after Windows dev
+.env.example                          # Environment template (copy to .env on VPS)
 ```
 
 At runtime, the Context Agent creates a `.sunny/context/` store that acts as shared memory across agent runs.
@@ -236,6 +241,8 @@ Enforced by every relevant agent:
 
 These agents run inside **Cursor**. The `.cursor/agents/*.md` files are picked up automatically as custom agents, and `.cursor/rules/sunny-orchestrator.mdc` provides the orchestration playbook.
 
+**Before the first run:** install prerequisites on your machine or VPS and set up Git — see **[INSTALL.md](INSTALL.md)** (Java, Node, Docker, Graphify, firewall, `.env`, clone/push workflow, edge cases). Use the root **[`.gitignore`](.gitignore)** so secrets, `.sunny/`, builds, and certs are never pushed to GitHub.
+
 ### Run the full pipeline
 
 In a Cursor chat, invoke Sunny and point it at your frontend:
@@ -271,6 +278,9 @@ The whole system runs as a Docker Compose stack (PostgreSQL + registry + gateway
 
 ## Learn more
 
+- **[INSTALL.md](INSTALL.md)** — what to install (React, Java/JHipster, Docker, Graphify, …), VPS setup, `.gitignore`, GitHub clone/push workflow, edge cases.
+- [`.gitignore`](.gitignore) — never commit `.env`, `.sunny/`, `node_modules/`, `target/`, certs, `graphify-out/`.
+- [`.env.example`](.env.example) — environment template (copy to `.env` on the VPS).
 - [`.cursor/agents/AGENT-GUIDE.md`](.cursor/agents/AGENT-GUIDE.md) — what every single agent does, clearly explained.
 - [`.cursor/agents/README.md`](.cursor/agents/README.md) — how the Sunny system works, phase by phase.
 - [`.cursor/agents/ARCHITECTURE.md`](.cursor/agents/ARCHITECTURE.md) — architecture and workflow diagrams.
