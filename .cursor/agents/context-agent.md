@@ -206,7 +206,7 @@ Always read and update `state.json` on every invocation:
 | production-standards-agent (blocked) | `production` |
 | production-fix-agent | `production_fix` |
 | production-standards-agent (approved) | `complete` |
-| Max iterations exceeded | `blocked` |
+| Max iterations exceeded | Keep advancing phase where technically possible; mark the capped stage `needs-attention`. Use `blocked` only when a hard dependency makes continuation impossible. |
 
 `{layer}` is one of `unit`, `integration`, `functional`. Within a side, the three layers are verified in order (unit → integration → functional); the side only advances when the functional layer is satisfied **and** the unit and integration layers were already satisfied.
 

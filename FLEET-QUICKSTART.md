@@ -62,7 +62,8 @@ validate `https://global.mememates.org/`. It's idempotent — safe to re-run.
 
 > If `global.mememates.org` isn't resolving yet, Hari says so and can bring up an
 > **HTTP-only** board temporarily; re-run the same prompt after DNS propagates to
-> get HTTPS.
+> get HTTPS. Hari preserves the fallback push token during that cutover so workers
+> that already fetched it keep reporting to the same board.
 
 ### 3. Build the backend (normal pipeline)
 

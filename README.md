@@ -191,7 +191,7 @@ flowchart LR
     SIL -->|"System integration testing satisfied"| DAL{"Doc & API loops<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance"}
     DAL -->|"stage gaps"| DAFIX[Fix that stage] --> DAL
     DAL -->|"all 5 doc/API stages satisfied"| PL{"Production loop<br/>audits ALL prior outputs + final report"}
-    PL -->|"blocked"| PFIX[Fix production] --> PL
+    PL -->|"findings"| PFIX[Fix production] --> PL
     PL -->|"Final approval granted"| DONE([Production-ready])
 ```
 

@@ -189,7 +189,7 @@ flowchart TD
     SILOOP -->|"System integration testing requirements satisfied."| DGEN
     DGEN --> DLOOP
     DLOOP -->|"all 5 doc/API stages satisfied"| PROD
-    PROD -->|"blocked"| PFIX
+    PROD -->|"findings"| PFIX
     PFIX --> PROD
     PROD -->|"Final approval granted."| Final(["Final Approval<br/>System is production-ready."])
 
@@ -297,7 +297,7 @@ sequenceDiagram
             S->>N: nginx-fix-agent closes findings
             S->>C: Persist nginx-fix-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
 
@@ -399,7 +399,7 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | API performance | `API performance testing requirements satisfied.` | API Performance Test Verify Agent |
 | Production | `Final approval granted. System is production-ready.` | Production Standards Agent |
 
-Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`. Stages run in order (architecture → backend → database → nginx & SSL → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny sets `phase: "blocked"`, records the blockers, stops, and escalates to the user instead of looping forever.
+Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`. Stages run in order (architecture → backend → database → nginx & SSL → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny marks that stage `needs-attention`, records the open findings as dashboard notifications, and continues wherever technically possible; it sets `phase: "blocked"` only when a hard dependency makes the next stage impossible.
 
 ---
 

@@ -263,7 +263,7 @@ flowchart TB
         direction LR
         PS["production-standards-agent - readonly<br/>• Audits ALL prior stage outputs (do's/don'ts)<br/>• Security + readiness + standards + performance<br/>• Comprehensive final report<br/>• Exit: Final approval granted. System is production-ready."]
         PF["production-fix-agent<br/>• Remediates PR findings<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
-        PS -->|blocked| PF --> PS
+        PS -->|findings| PF --> PS
     end
 
     orch --> sArch --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5
@@ -287,7 +287,7 @@ flowchart TD
     PA2 --> AApproved{"lastVerdict ==<br/>'Architecture approved.'?"}
     AApproved -->|No| CapA{"architectureVerifyIterations<br/>>= 5?"}
     CapA -->|No| AFix[architecture-fix-agent] --> PA3["context-agent<br/>architecture-fix-log.md"] --> AVer
-    CapA -->|Yes| Blocked["phase = blocked<br/>escalate to user"]
+    CapA -->|Yes| Attention["stage = needs-attention<br/>notify + continue if possible<br/>(blocked only on hard dependency)"]
 
     AApproved -->|Yes| Gen[jhipster-backend-agent]
     Gen --> P1["context-agent<br/>backend-summary.md"]
@@ -297,7 +297,7 @@ flowchart TD
     P2 --> Approved{"lastVerdict ==<br/>'No issues found.<br/>Backend approved.'?"}
     Approved -->|No| CapB{"backendVerifyIterations<br/>>= 5?"}
     CapB -->|No| Fix[issue-resolution-agent] --> P3["context-agent<br/>issue-resolution-log.md"] --> Verify
-    CapB -->|Yes| Blocked
+    CapB -->|Yes| Attention
 
     Approved -->|Yes| DGen[database-agent]
     DGen --> PD1["context-agent<br/>database-summary.md"]
@@ -306,7 +306,7 @@ flowchart TD
     PD2 --> DApproved{"lastVerdict ==<br/>'Database approved.'?"}
     DApproved -->|No| CapD{"databaseVerifyIterations<br/>>= 5?"}
     CapD -->|No| DFix[database-fix-agent] --> PD3["context-agent<br/>database-fix-log.md"] --> DVer
-    CapD -->|Yes| Blocked
+    CapD -->|Yes| Attention
 
     DApproved -->|Yes| NGen[nginx-agent]
     NGen --> PN1["context-agent<br/>nginx-summary.md"]
@@ -315,18 +315,18 @@ flowchart TD
     PN2 --> NApproved{"lastVerdict ==<br/>'Nginx and SSL approved.'?"}
     NApproved -->|No| CapN{"nginxVerifyIterations<br/>>= 5?"}
     CapN -->|No| NFix[nginx-fix-agent] --> PN3["context-agent<br/>nginx-fix-log.md"] --> NVer
-    CapN -->|Yes| Blocked
+    CapN -->|Yes| Attention
 
     NApproved -->|Yes| BGen["backend test generation<br/>unit + integration + functional<br/>context-agent: backend-test-report.md"]
     BGen --> BLoop["Backend per-layer verify/fix loops<br/>(see Section 4)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
     BLoop --> BSat{"all 3 backend layers<br/>satisfied?"}
-    BSat -->|No, any layer hit cap 5| Blocked
+    BSat -->|No, any layer hit cap 5| Attention
     BSat -->|Yes| FGen
 
     FGen["frontend test generation<br/>unit + integration + functional<br/>context-agent: frontend-test-report.md"]
     FGen --> FLoop["Frontend per-layer verify/fix loops<br/>(see Section 5)<br/>unit -> integration -> functional<br/>each: verify -> fix -> re-verify, cap 5"]
     FLoop --> FSat{"all 3 frontend layers<br/>satisfied?"}
-    FSat -->|No, any layer hit cap 5| Blocked
+    FSat -->|No, any layer hit cap 5| Attention
     FSat -->|Yes| SIGen[system-integration-test-agent]
 
     SIGen --> PSI1["context-agent<br/>system-integration-test-report.md"]
@@ -335,16 +335,16 @@ flowchart TD
     PSI2 --> SISat{"lastVerdict ==<br/>'System integration testing<br/>requirements satisfied.'?"}
     SISat -->|No| CapSI{"systemIntegrationTestVerifyIterations<br/>>= 5?"}
     CapSI -->|No| SIFix[system-integration-test-fix-agent] --> PSI3["context-agent<br/>system-integration-test-fix-log.md"] --> SIVer
-    CapSI -->|Yes| Blocked
+    CapSI -->|Yes| Attention
     SISat -->|Yes| DocAPI["Documentation & API stages (see Section 5.6)<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate -> verify -> fix -> re-verify, cap 5"]
     DocAPI --> DocSat{"all 5 doc/API<br/>stages satisfied?"}
-    DocSat -->|No, any stage hit cap 5| Blocked
+    DocSat -->|No, any stage hit cap 5| Attention
     DocSat -->|Yes| Prod["production-standards-agent<br/>audits ALL prior outputs + final report"]
     Prod --> P10["context-agent<br/>production-report.md"]
     P10 --> PSat{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
     PSat -->|No| CapP{"productionVerifyIterations<br/>>= 5?"}
     CapP -->|No| PFix[production-fix-agent] --> P11["context-agent<br/>production-fix-log.md"] --> Prod
-    CapP -->|Yes| Blocked
+    CapP -->|Yes| Attention
     PSat -->|Yes| Final(["Final Approval<br/>System is production-ready."])
 ```
 
@@ -363,7 +363,7 @@ flowchart LR
     B --> C{"Architecture approved?"}
     C -->|Yes| Exit([Exit to Backend generation])
     C -->|No| D{architectureVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[architecture-fix-agent]
     E --> F["context-agent<br/>architecture-fix-log.md"]
     F --> A
@@ -377,7 +377,7 @@ flowchart LR
     B --> C{Issues?}
     C -->|"No issues found.<br/>Backend approved."| Exit([Exit to Database])
     C -->|Issues found| D{backendVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[issue-resolution-agent]
     E --> F["context-agent<br/>issue-resolution-log.md"]
     F --> A
@@ -392,7 +392,7 @@ flowchart LR
     B --> C{"Database approved?"}
     C -->|Yes| Exit([Exit to Nginx & SSL])
     C -->|No| D{databaseVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[database-fix-agent]
     E --> F["context-agent<br/>database-fix-log.md"]
     F --> A
@@ -407,7 +407,7 @@ flowchart LR
     B --> C{"Nginx and SSL approved?"}
     C -->|Yes| Exit([Exit to Backend tests])
     C -->|No| D{nginxVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[nginx-fix-agent]
     E --> F["context-agent<br/>nginx-fix-log.md"]
     F --> A
@@ -425,7 +425,7 @@ flowchart TB
     P --> UA[backend-unit-test-verify-agent]
     UA --> UB{"unit satisfied?<br/>'Backend unit testing<br/>requirements satisfied.'"}
     UB -->|No| UD{backendUnitTestVerifyIterations >= 5?}
-    UD -->|Yes| Stop([Blocked - escalate])
+    UD -->|Yes| Stop([Needs attention<br/>continue if possible])
     UD -->|No| UE[backend-unit-test-fix-agent] --> UF["context-agent<br/>backend-unit-test-fix-log.md"] --> UA
     UB -->|Yes| IA[backend-integration-test-verify-agent]
 
@@ -454,7 +454,7 @@ flowchart TB
     P --> UA[frontend-unit-test-verify-agent]
     UA --> UB{"unit satisfied?<br/>'Frontend unit testing<br/>requirements satisfied.'"}
     UB -->|No| UD{frontendUnitTestVerifyIterations >= 5?}
-    UD -->|Yes| Stop([Blocked - escalate])
+    UD -->|Yes| Stop([Needs attention<br/>continue if possible])
     UD -->|No| UE[frontend-unit-test-fix-agent] --> UF["context-agent<br/>frontend-unit-test-fix-log.md"] --> UA
     UB -->|Yes| IA[frontend-integration-test-verify-agent]
 
@@ -482,7 +482,7 @@ flowchart LR
     B --> C{"System integration testing<br/>requirements satisfied?"}
     C -->|Yes| Exit([Exit to Documentation & API stages])
     C -->|No| D{systemIntegrationTestVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[system-integration-test-fix-agent]
     E --> F["context-agent<br/>system-integration-test-fix-log.md"]
     F --> A
@@ -497,7 +497,7 @@ flowchart TB
     SW[swagger-agent] --> SWV[swagger-verify-agent]
     SWV --> SWB{"Swagger documentation<br/>requirements satisfied?"}
     SWB -->|No| SWD{swaggerVerifyIterations >= 5?}
-    SWD -->|Yes| Stop([Blocked - escalate])
+    SWD -->|Yes| Stop([Needs attention<br/>continue if possible])
     SWD -->|No| SWF[swagger-fix-agent] --> SWV
     SWB -->|Yes| JD[javadoc-agent]
 
@@ -540,7 +540,7 @@ flowchart LR
     B --> C{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
     C -->|Yes| Exit([Final Approval])
     C -->|No| D{productionVerifyIterations<br/>>= 5?}
-    D -->|Yes| Stop([Blocked - escalate])
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[production-fix-agent]
     E --> F["context-agent<br/>production-fix-log.md"]
     F --> A
@@ -559,7 +559,10 @@ flowchart TD
     P --> Q{"exact exit<br/>phrase emitted?"}
     Q -->|Yes| Next([Advance to next stage])
     Q -->|No| Cap{"counter >= 5?"}
-    Cap -->|Yes| Blocked["phase = blocked<br/>Sunny stops and escalates<br/>with blockers from state.json"]
+    Cap -->|Yes| Attention["stage = needs-attention<br/>dashboard notification<br/>continue if possible"]
+    Attention --> Hard{"hard dependency<br/>blocks next stage?"}
+    Hard -->|Yes| Blocked["phase = blocked<br/>Sunny stops with blockers"]
+    Hard -->|No| Next
     Cap -->|No| Fix["fix agent<br/>• reads findings as work queue<br/>• fixes every item by severity<br/>• no control / gate weakening<br/>• rebuild + run affected tests"]
     Fix --> P2["context-agent<br/>append fix-log"]
     P2 --> V
@@ -647,7 +650,7 @@ sequenceDiagram
             S->>A: architecture-fix-agent closes findings
             S->>C: Persist architecture-fix-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -666,7 +669,7 @@ sequenceDiagram
             I-->>S: fix summary
             S->>C: Persist issue-resolution-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -684,7 +687,7 @@ sequenceDiagram
             S->>D: database-fix-agent closes findings
             S->>C: Persist database-fix-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -702,7 +705,7 @@ sequenceDiagram
             S->>N: nginx-fix-agent closes findings
             S->>C: Persist nginx-fix-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -721,7 +724,7 @@ sequenceDiagram
             BT-->>S: fix summary
             S->>C: Persist backend-{layer}-test-fix-log.md
         else Layer satisfied or max iterations
-            note over S: next layer or blocked
+            note over S: next layer or needs-attention
         end
     end
     end
@@ -740,7 +743,7 @@ sequenceDiagram
             FT-->>S: fix summary
             S->>C: Persist frontend-{layer}-test-fix-log.md
         else Layer satisfied or max iterations
-            note over S: next layer or blocked
+            note over S: next layer or needs-attention
         end
     end
     end
@@ -759,7 +762,7 @@ sequenceDiagram
             SI-->>S: fix summary
             S->>C: Persist system-integration-test-fix-log.md
         else Satisfied or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -778,7 +781,7 @@ sequenceDiagram
                 S->>DA: {stage}-fix-agent closes gaps
                 S->>C: Persist {stage}-fix-log.md
             else Satisfied or max iterations
-                note over S: next stage or blocked
+                note over S: next stage or needs-attention
             end
         end
     end
@@ -795,7 +798,7 @@ sequenceDiagram
             PF-->>S: fix summary
             S->>C: Persist production-fix-log.md
         else Approved or max iterations
-            note over S: break or blocked
+            note over S: break or needs-attention
         end
     end
     end
@@ -993,25 +996,38 @@ stateDiagram-v2
     api_performance --> api_performance: not satisfied (fix and re-verify)
     api_performance --> production: API performance satisfied
 
-    production --> production_fix: blocked (findings)
+    production --> production_fix: findings
     production_fix --> production: re-audit
     production --> complete: Final approval granted
     complete --> [*]
 
-    architecture_verify --> blocked: max iterations
-    backend_verify --> blocked: max iterations
-    database_verify --> blocked: max iterations
-    nginx_verify --> blocked: max iterations
-    testing_backend --> blocked: max iterations
-    testing_frontend --> blocked: max iterations
-    testing_system --> blocked: max iterations
-    swagger --> blocked: max iterations
-    javadoc --> blocked: max iterations
-    api_collection --> blocked: max iterations
-    api_testing --> blocked: max iterations
-    api_performance --> blocked: max iterations
-    production --> blocked: max iterations
-    blocked --> [*]: escalate to user
+    architecture_verify --> backend: max iterations, mark architecture needs-attention if backend can continue
+    backend_verify --> database: max iterations, mark backend verification needs-attention if database can continue
+    database_verify --> nginx: max iterations, mark database needs-attention if nginx can continue
+    nginx_verify --> testing_backend: max iterations, mark nginx needs-attention if tests can continue
+    testing_backend --> testing_frontend: max iterations, mark backend testing needs-attention if frontend can continue
+    testing_frontend --> testing_system: max iterations, mark frontend testing needs-attention if system tests can continue
+    testing_system --> swagger: max iterations, mark system testing needs-attention if docs can continue
+    swagger --> javadoc: max iterations, mark swagger needs-attention
+    javadoc --> api_collection: max iterations, mark javadoc needs-attention
+    api_collection --> api_testing: max iterations, mark API collection needs-attention
+    api_testing --> api_performance: max iterations, mark API testing needs-attention
+    api_performance --> production: max iterations, mark API performance needs-attention
+    production --> complete: max iterations, mark production needs-attention and report outstanding items
+    architecture_verify --> blocked: hard dependency cannot continue
+    backend_verify --> blocked: hard dependency cannot continue
+    database_verify --> blocked: hard dependency cannot continue
+    nginx_verify --> blocked: hard dependency cannot continue
+    testing_backend --> blocked: hard dependency cannot continue
+    testing_frontend --> blocked: hard dependency cannot continue
+    testing_system --> blocked: hard dependency cannot continue
+    swagger --> blocked: hard dependency cannot continue
+    javadoc --> blocked: hard dependency cannot continue
+    api_collection --> blocked: hard dependency cannot continue
+    api_testing --> blocked: hard dependency cannot continue
+    api_performance --> blocked: hard dependency cannot continue
+    production --> blocked: hard dependency cannot continue
+    blocked --> [*]: user action required
 ```
 
 > Within `testing_backend` and `testing_frontend`, the layers are verified/fixed in order — unit → integration → functional — each with its own exit phrase and iteration counter. The side advances only when all three layers are satisfied.
@@ -1036,4 +1052,4 @@ stateDiagram-v2
 | **System integration exit** | `System integration testing requirements satisfied.` |
 | **Doc/API exits** | `Swagger documentation requirements satisfied.` / `Javadoc documentation requirements satisfied.` / `API collection requirements satisfied.` / `API testing requirements satisfied.` / `API performance testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`); exceeding it sets `phase = blocked` **before** launching the fix agent again |
+| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`); exceeding it marks the stage `needs-attention` **before** launching the fix agent again and continues wherever technically possible. `phase = blocked` is reserved for a hard dependency that makes the next stage impossible. |

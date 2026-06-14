@@ -12,7 +12,7 @@ A complete, presentation-ready reference for **every agent** in the Sunny multi-
 - **Slug** — the technical agent id used to launch it (e.g. `jhipster-backend-agent`). This never changes.
 - **readonly** — a readonly agent only audits and reports; it never edits code. Only readonly verify/audit agents may emit an exit phrase.
 - **Exit phrase** — the exact string a verify agent emits when its loop is satisfied. The orchestrator matches it literally to advance.
-- **Loop** — generate → verify → fix → re-verify, capped at **5 iterations** per loop before Sunny escalates.
+- **Loop** — generate → verify → fix → re-verify, capped at **5 iterations** per loop before Sunny marks the stage `needs-attention` and continues where possible.
 
 **System totals:** 52 orchestrated agents + 2 standalone (`documentation`, `fleet-host-agent`) · 17 verify/fix loops · 17 readonly auditors.
 
@@ -42,7 +42,7 @@ graphify install
 ## Orchestration & shared memory
 
 ### Sunny — Orchestrator (`sunny`) · not readonly
-- The conductor. Coordinates every agent via the Task tool, runs each verify/fix loop until the exact exit phrase, enforces the non-negotiables, and escalates when a loop hits its 5-iteration cap.
+- The conductor. Coordinates every agent via the Task tool, runs each verify/fix loop until the exact exit phrase, enforces the non-negotiables, and turns capped loops into visible `needs-attention` notifications unless a hard dependency requires a real stop.
 - Never writes backend code itself — it delegates and gates.
 - **Reads:** user request + `state.json` (loop status). **Produces:** orchestration plan, phase announcements, the final summary to the user.
 
