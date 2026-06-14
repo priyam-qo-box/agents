@@ -47,6 +47,7 @@ GLOBAL_HTML = os.path.join(HERE, "global.html")
 CENTRAL_DOMAIN = (os.environ.get("CENTRAL_DOMAIN") or "").strip()
 
 _RUNID_RE = re.compile(r"[^A-Za-z0-9._-]")
+_RUNID_EDGE_RE = re.compile(r"^[._-]+|[._-]+$")
 _BOOTSTRAPPED_TOKEN = None
 
 
@@ -55,7 +56,9 @@ def _now_iso():
 
 
 def _safe_run_id(raw):
-    rid = _RUNID_RE.sub("-", (raw or "").strip())[:128]
+    rid = _RUNID_RE.sub("-", (raw or "").strip())
+    rid = re.sub(r"-{2,}", "-", rid)
+    rid = _RUNID_EDGE_RE.sub("", rid)[:128]
     return rid or None
 
 

@@ -35,9 +35,9 @@ You generate everything else. **Never** ask the operator for the push token — 
 ## Hard rules (non-negotiable)
 
 - **One collector, one host.** Deploy the central stack on the fleet host only. Do not deploy it on every worker VPS.
-- **Idempotent.** If a `.env` or running stack already exists, do **not** clobber it — only fill missing values and reconcile. Never regenerate the push token (`data/fleet_push.token`); worker VPSs already trust it.
+- **Idempotent.** If a `.env` or running stack already exists, do **not** clobber it — only fill missing values and reconcile. Never regenerate the push token (`/data/fleet_push.token` inside the collector; `data/fleet_push.token` only for the direct HTTP fallback); worker VPSs already trust it.
 - **HTTPS for the public board.** Use **Certbot/Let's Encrypt** for a real certificate; HTTP must redirect to HTTPS. (Plain HTTP is acceptable only as a temporary fallback while DNS/cert is pending — say so explicitly if you fall back.)
-- **Token stays secret.** Never print the push token value to chat or logs. `.env` and `data/` are gitignored — never commit them.
+- **Token stays secret.** Never print the push token value to chat or logs. `.env`, the collector data volume, and fallback `data/` directory are runtime-only — never commit them.
 - **Persistent.** The stack must survive reboots (`restart: unless-stopped`, already set) and keep running after your session ends (`docker compose up -d`).
 - **Non-destructive to workers.** Bringing the host up or down must never require any change on the worker VPSs.
 
@@ -54,7 +54,7 @@ Before deploying, verify and **report** each condition (✅/❌). Where somethin
 
 Work inside `.cursor/central/`.
 
-1. **Config.** If `.env` is missing, `cp .env.example .env`; set `CENTRAL_DOMAIN=<fleet-domain>` and `ACME_EMAIL=<email or admin@<fleet-domain>>`. Leave `COLLECTOR_TOKENS` blank so the collector auto-generates and persists a token (`data/fleet_push.token`). Never overwrite an existing `.env`.
+1. **Config.** If `.env` is missing, `cp .env.example .env`; set `CENTRAL_DOMAIN=<fleet-domain>` and `ACME_EMAIL=<email or admin@<fleet-domain>>`. Leave `COLLECTOR_TOKENS` blank so the collector auto-generates and persists a token (`/data/fleet_push.token` in the compose data volume; `data/fleet_push.token` for the direct HTTP fallback). Never overwrite an existing `.env`.
 2. **Issue the TLS cert first — cert-first is mandatory.** The Nginx HTTPS server block references the cert files and Nginx **will not start without them**, so issue the cert **before** `docker compose up`, with the stack down and port 80 free:
    ```bash
    set -a; . ./.env; set +a            # load CENTRAL_DOMAIN / ACME_EMAIL
@@ -76,7 +76,7 @@ Work inside `.cursor/central/`.
    docker run -d --name fleet-http --restart unless-stopped -p 80:8080 \
      -e CENTRAL_DOMAIN="$CENTRAL_DOMAIN" -v "$PWD/data:/data" sunny-collector
    ```
-   The board and `/api/fleet-config` work over `http://<fleet-domain>/` (workers can push over HTTP meanwhile). When DNS resolves, `docker rm -f fleet-http`, then redo steps 2 → 3 to cut over to HTTPS. The auto-generated token in `data/` is reused, so workers keep working.
+   The board and `/api/fleet-config` work over `http://<fleet-domain>/` (workers can push over HTTP meanwhile). When DNS resolves, preserve the auto-generated token before HTTPS cutover: if `data/fleet_push.token` exists, read it locally without printing it and set `COLLECTOR_TOKENS=<that value>` in `.env` (or import the fallback `data/` directory into the compose data volume). Then `docker rm -f fleet-http` and redo steps 2 → 3. Workers keep working because `/api/fleet-config` returns the same token after cutover.
 4. **Schedule renewal** (cron/systemd timer) using the standalone renewer with Nginx pre/post hooks:
    ```bash
    docker run --rm -p 80:80 -v "$PWD/letsencrypt:/etc/letsencrypt" \
@@ -95,7 +95,7 @@ Work inside `.cursor/central/`.
    - **Modern TLS only:** TLS 1.0/1.1 refused, 1.2/1.3 accepted (e.g. `curl --tls-max 1.1 https://<fleet-domain>/` fails; default succeeds). Cert is CA-issued (not self-signed).
    - **Containers least-privilege:** collector runs as non-root (`docker compose exec collector id` → not uid 0) with `no-new-privileges`; the gateway/collector port 8080 is **not** published to the host (only Nginx 80/443 are).
    - **Renewal proven:** `certbot renew --dry-run` (or the renew container) succeeds.
-   - **No secrets committed:** `.env`, `data/`, `letsencrypt/` are gitignored; the token value is never printed.
+   - **No secrets committed:** `.env`, collector data, fallback `data/`, and `letsencrypt/` are gitignored/runtime-only; the token value is never printed.
 
 ## Self-heal loop (notify, don't hang)
 

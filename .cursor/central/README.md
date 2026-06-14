@@ -34,7 +34,7 @@ VPS #3 ─┘   (Bearer token)              global.html + collector
 
 | File | Purpose |
 | --- | --- |
-| `collector.py` | Stdlib HTTP server: auto token, `GET /api/fleet-config`, `POST /api/runs/<id>`, `GET /api/runs`, serves `global.html`. Smoke-tested end-to-end. |
+| `collector.py` | Stdlib HTTP server: auto token, `GET /api/fleet-config`, `POST /api/runs/<id>`, `GET /api/runs`, serves `global.html`. Covered by `test_collector.py`. |
 | `global.html` | The fleet dashboard (auto-refresh, cards per run, action-required badges). |
 | `Dockerfile` | Builds the collector image (python:3.12-alpine). |
 | `docker-compose.yml` | Collector + Nginx (TLS) for the central domain. |
@@ -79,6 +79,8 @@ You still need the **DNS A record** (`fleet.example.com` → this host) and port
 
 Now `https://<CENTRAL_DOMAIN>/` shows the fleet; `GET /api/runs` is the JSON feed; `GET /api/fleet-config` exposes the auto-generated push token for worker agents.
 
+The compose deployment stores collector state in the `collector-data` Docker volume mounted at `/data` inside the collector container. The direct HTTP fallback in `fleet-host-agent.md` uses host `./data:/data` so it can reuse the same token when you later cut over to HTTPS.
+
 ## Worker VPSs (agents do everything)
 
 You **do not** copy tokens or edit `.env` by hand. At Sunny kickoff on each worker VPS, give only:
@@ -111,7 +113,17 @@ This collector is a **progress visibility board**, not a high-availability or co
 - **Modern TLS only** (TLS 1.2/1.3, Mozilla-intermediate ciphers, OCSP stapling, `ssl_session_tickets off`).
 - **Security headers** on every response: HSTS (2y, includeSubDomains), `X-Content-Type-Options`, `X-Frame-Options: DENY`, a locked-down `Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`. The collector also emits nosniff / frame-deny so the TLS-less fallback stays safe.
 - **Least privilege:** the collector image runs as a **non-root** user; both services use `no-new-privileges`; only Nginx publishes 80/443 (the collector's 8080 is internal). Log rotation is capped (json-file, 10m × 5).
-- Tokens and `.env` are **gitignored**. On first start the collector **auto-generates** a push token (saved to `data/fleet_push.token`). Workers fetch it via `/api/fleet-config` — you never distribute it manually. To rotate: set `COLLECTOR_TOKENS` explicitly and restart.
+- Tokens and `.env` are **gitignored**. On first start the collector **auto-generates** a push token and saves it under `DATA_DIR` (`/data/fleet_push.token` in the compose container; host `./data/fleet_push.token` only for the direct HTTP fallback). Workers fetch it via `/api/fleet-config` — you never distribute it manually. To rotate: set `COLLECTOR_TOKENS` explicitly and restart.
+
+## Local collector tests
+
+Run the stdlib smoke tests without Docker:
+
+```bash
+python .cursor/central/test_collector.py
+```
+
+They verify token bootstrap, authenticated writes, run listing, and run ID sanitization.
 
 ### Exposure model — read this before exposing it to the internet
 
