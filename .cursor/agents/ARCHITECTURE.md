@@ -8,7 +8,7 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 0. System at a glance
 
-**62 orchestrated agents** (plus 2 standalone agents: `documentation` and `fleet-host-agent`), driven through **19 bounded verify/fix loops**.
+**72 orchestrated agents** (plus 2 standalone agents: `documentation` and `fleet-host-agent`), driven through **24 bounded verify/fix loops**.
 
 | Group | Count | Agents |
 |-------|-------|--------|
@@ -27,11 +27,11 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | API tests (status) | 3 | `api-test-agent`, `api-test-verify-agent` (readonly), `api-test-fix-agent` |
 | API performance (1/10/20/30) | 3 | `api-performance-test-agent`, `api-performance-test-verify-agent` (readonly), `api-performance-test-fix-agent` |
 | Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
-| Production deployment (VPS / Minikube) | 7 | `deployment-platform-agent`, `server-provision-agent`, `deployment-database-agent`, `deployment-backend-agent`, `deployment-edge-agent`, `deployment-verify-agent` (readonly), `deployment-fix-agent` |
+| Production deployment (VPS / Minikube) | 17 | 5×(generate + verify + fix) + final `deployment-verify-agent` (readonly) + `deployment-fix-agent` |
 | Standalone (not orchestrated) | 2 | `documentation`, `fleet-host-agent` |
 
-- **19 verify/fix loops:** architecture + supabase removal + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production + deployment.
-- **19 readonly auditors:** `architecture-verify-agent`, `supabase-removal-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, `production-standards-agent`, and `deployment-verify-agent`.
+- **24 verify/fix loops:** architecture + supabase removal + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production + **6 deployment loops** (platform, provision, database, backend, edge, final collective).
+- **25 readonly auditors:** all `*-verify-agent` files including the five per-step deployment verifiers and final `deployment-verify-agent`.
 - **Pipeline order:** architecture → **supabase & lovable removal** → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production → **production deployment (Minikube + Grafana + Nginx + PM2)**.
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
 - **Domain at intake:** the user provides **project domain + fleet domain** only; agents derive `ACME_EMAIL` (`admin@<project-domain>` by default), all secrets, fleet URL, and push token (fetched from `/api/fleet-config`).
@@ -62,12 +62,12 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 | Swagger / Javadoc | Surya / Jaya | + Verify | + Fix |
 | API collection / tests / performance | Chetan / Tara / Pawan | + Verify | + Fix |
 | production | Prakash | Prakash (audit) | Prakash Fix |
-| deploy platform | Rajesh | — | — |
-| server provision | Suresh | — | — |
-| deploy database | Lakshmi | — | — |
-| deploy backend | Manoj | — | — |
-| deploy edge | Asha | — | — |
-| deploy verify | Om | Om (audit) | Om Fix |
+| deploy platform | Rajesh | Rajesh Verify | Rajesh Fix |
+| server provision | Suresh | Suresh Verify | Suresh Fix |
+| deploy database | Lakshmi | Lakshmi Verify | Lakshmi Fix |
+| deploy backend | Manoj | Manoj Verify | Manoj Fix |
+| deploy edge | Asha | Asha Verify | Asha Fix |
+| deploy final | Om | Om (collective audit) | Om Fix |
 
 **Singletons:** Sunny (orchestrator) · Maya (context/shared memory) · Deepa (standalone documentation) · Hari (standalone fleet-host — deploys the global dashboard). Full mapping: [`README.md`](README.md#agent-codenames).
 
@@ -94,7 +94,7 @@ flowchart TB
         SI["Stage 9 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
         SDOC["Stages 10-14 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
         S5["Stage 15 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
-        SDEP["Stages 16-22 - Production deployment (VPS)<br/>Minikube + Grafana -> provision -> DB -> backend pods -> Nginx+PM2<br/>verify: deployment-verify-agent (readonly)<br/>fix: deployment-fix-agent"]
+        SDEP["Stages 16-22 - Production deployment (VPS)<br/>each sub-stage: generate → verify (readonly) → fix<br/>platform → provision → DB → backend → edge → final verify"]
         S0 --> S0b --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5 --> SDEP
     end
 
@@ -118,7 +118,7 @@ Each agent with its key points, grouped by stage. Readonly agents only audit and
 flowchart TB
     subgraph orch [Orchestration and Memory]
         direction LR
-        DRV["Sunny / Driver<br/>• Orchestrates all 17 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
+        DRV["Sunny / Driver<br/>• Orchestrates all 24 verify/fix loops<br/>• Matches exact exit phrases<br/>• Enforces quality gates<br/>• Escalates when blocked"]
         CTX["context-agent<br/>• Sole writer of .sunny/context<br/>• Structured summaries + state.json<br/>• Trims handoffs to next agent<br/>• Tracks phase + iteration counters"]
     end
 
@@ -131,7 +131,16 @@ flowchart TB
         ARCV -->|issues| ARCF --> ARCV
     end
 
-    subgraph s12 [Stage 2-3 - Backend build and verify]
+    subgraph sSup [Stage 2 - Supabase and Lovable removal]
+        direction LR
+        SUP["supabase-removal-agent<br/>• Scan Supabase/.lovable usage<br/>• REST API client layer<br/>• Delete supabase/ and .lovable/"]
+        SUPV["supabase-removal-verify-agent - readonly<br/>• Zero BaaS refs; build passes<br/>• Exit: Supabase and Lovable removal complete."]
+        SUPF["supabase-removal-fix-agent<br/>• Closes migration gaps"]
+        SUP --> SUPV
+        SUPV -->|issues| SUPF --> SUPV
+    end
+
+    subgraph s12 [Stage 3-4 - Backend build and verify]
         direction LR
         GEN["jhipster-backend-agent<br/>• Microservices: gateway + services + registry<br/>• PostgreSQL + Liquibase<br/>• JWT/OAuth2 + RBAC, Docker<br/>• No mock/fake data"]
         VER["jhipster-verify-agent - readonly<br/>• REST/OpenAPI/RFC7807 audit<br/>• Auth + vulnerability checks<br/>• Microservices + DB integrity<br/>• Exit: No issues found. Backend approved."]
@@ -277,7 +286,53 @@ flowchart TB
         PS -->|findings| PF --> PS
     end
 
-    orch --> sArch --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5
+    subgraph sDep [Stages 16-22 - Production deployment - per-step verify and fix]
+        direction TB
+        subgraph sDp [Stage 16 - Platform Minikube + Grafana]
+            direction LR
+            DP["deployment-platform-agent<br/>• Minikube prod profile<br/>• kube-prometheus-stack<br/>• Grafana provisioning + Sunny dashboard"]
+            DPV["deployment-platform-verify-agent - readonly<br/>• Cluster + Helm + datasources<br/>• Exit: Deployment platform approved."]
+            DPF["deployment-platform-fix-agent"]
+            DP --> DPV -->|issues| DPF --> DPV
+        end
+        subgraph sDs [Stage 17 - Server provisioning]
+            direction LR
+            DS["server-provision-agent<br/>• Java, Node, PG, Nginx, PM2, Docker<br/>• provision.sh idempotent"]
+            DSV["server-provision-verify-agent - readonly<br/>• All tools + prefetch<br/>• Exit: Server provisioning approved."]
+            DSF["server-provision-fix-agent"]
+            DS --> DSV -->|issues| DSF --> DSV
+        end
+        subgraph sDd [Stage 18 - Deploy database]
+            direction LR
+            DD["deployment-database-agent<br/>• Production PostgreSQL<br/>• Credentials in .env only"]
+            DDV["deployment-database-verify-agent - readonly<br/>• DB + migrations + connectivity<br/>• Exit: Deployment database approved."]
+            DDF["deployment-database-fix-agent"]
+            DD --> DDV -->|issues| DDF --> DDV
+        end
+        subgraph sDbk [Stage 19 - Deploy backend]
+            direction LR
+            DBK["deployment-backend-agent<br/>• K8s pods per microservice<br/>• Probes, limits, ServiceMonitors"]
+            DBKV["deployment-backend-verify-agent - readonly<br/>• Pods UP; Prometheus targets<br/>• Exit: Deployment backend approved."]
+            DBKF["deployment-backend-fix-agent"]
+            DBK --> DBKV -->|issues| DBKF --> DBKV
+        end
+        subgraph sDe [Stage 20 - Deploy edge]
+            direction LR
+            DE["deployment-edge-agent<br/>• Nginx TLS + PM2 frontend<br/>• /api /progress.json /grafana"]
+            DEV["deployment-edge-verify-agent - readonly<br/>• Routing + TLS + smoke<br/>• Exit: Deployment edge approved."]
+            DEF["deployment-edge-fix-agent"]
+            DE --> DEV -->|issues| DEF --> DEV
+        end
+        subgraph sDf [Stage 21-22 - Final collective verify]
+            direction LR
+            DFV["deployment-verify-agent - readonly<br/>• Full stack E2E + health-check.sh<br/>• Exit: Production deployment verified. System is live."]
+            DFF["deployment-fix-agent<br/>• Cross-tier remediation"]
+            DFV -->|issues| DFF --> DFV
+        end
+        sDp --> sDs --> sDd --> sDbk --> sDe --> sDf
+    end
+
+    orch --> sArch --> sSup --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5 --> sDep
 ```
 
 ---
@@ -365,13 +420,52 @@ flowchart TD
     PSat -->|No| CapP{"productionVerifyIterations<br/>>= 5?"}
     CapP -->|No| PFix[production-fix-agent] --> P11["context-agent<br/>production-fix-log.md"] --> Prod
     CapP -->|Yes| Attention
-    PSat -->|Yes| Deploy["Production deployment<br/>deployment-platform -> provision -> DB -> backend -> edge"]
-    Deploy --> PDep1["context-agent<br/>deployment-*-summary.md"]
-    PDep1 --> DepVer[deployment-verify-agent]
+    PSat -->|Yes| DPlat[deployment-platform-agent]
+    DPlat --> PDp1["context-agent<br/>deployment-platform-summary.md"]
+    PDp1 --> DPlatV[deployment-platform-verify-agent]
+    DPlatV --> PDp2["context-agent<br/>deployment-platform-verify-report.md"]
+    PDp2 --> DPlatOK{"Deployment platform<br/>approved?"}
+    DPlatOK -->|No| CapDp{"deploymentPlatformVerifyIterations<br/>>= 5?"}
+    CapDp -->|No| DPlatF[deployment-platform-fix-agent] --> PDp3["fix-log"] --> DPlatV
+    CapDp -->|Yes| Attention
+    DPlatOK -->|Yes| DProv[server-provision-agent]
+
+    DProv --> PDs1["context-agent<br/>server-provision-summary.md"]
+    PDs1 --> DProvV[server-provision-verify-agent]
+    DProvV --> PDs2["verify-report"] --> DProvOK{"Server provisioning<br/>approved?"}
+    DProvOK -->|No| CapDs{"serverProvisionVerifyIterations<br/>>= 5?"}
+    CapDs -->|No| DProvF[server-provision-fix-agent] --> DProvV
+    CapDs -->|Yes| Attention
+    DProvOK -->|Yes| DDb[deployment-database-agent]
+
+    DDb --> PDd1["deployment-database-summary.md"]
+    PDd1 --> DDbV[deployment-database-verify-agent] --> PDd2["verify-report"]
+    PDd2 --> DDbOK{"Deployment database<br/>approved?"}
+    DDbOK -->|No| CapDd{"deploymentDatabaseVerifyIterations<br/>>= 5?"}
+    CapDd -->|No| DDbF[deployment-database-fix-agent] --> DDbV
+    CapDd -->|Yes| Attention
+    DDbOK -->|Yes| DBk[deployment-backend-agent]
+
+    DBk --> PDbk1["deployment-backend-summary.md"]
+    PDbk1 --> DBkV[deployment-backend-verify-agent] --> PDbk2["verify-report"]
+    PDbk2 --> DBkOK{"Deployment backend<br/>approved?"}
+    DBkOK -->|No| CapDbk{"deploymentBackendVerifyIterations<br/>>= 5?"}
+    CapDbk -->|No| DBkF[deployment-backend-fix-agent] --> DBkV
+    CapDbk -->|Yes| Attention
+    DBkOK -->|Yes| DEdge[deployment-edge-agent]
+
+    DEdge --> PDe1["deployment-edge-summary.md"]
+    PDe1 --> DEdgeV[deployment-edge-verify-agent] --> PDe2["verify-report"]
+    PDe2 --> DEdgeOK{"Deployment edge<br/>approved?"}
+    DEdgeOK -->|No| CapDe{"deploymentEdgeVerifyIterations<br/>>= 5?"}
+    CapDe -->|No| DEdgeF[deployment-edge-fix-agent] --> DEdgeV
+    CapDe -->|Yes| Attention
+    DEdgeOK -->|Yes| DepVer[deployment-verify-agent]
+
     DepVer --> PDep2["context-agent<br/>deployment-verify-report.md"]
-    PDep2 --> DepSat{"lastVerdict ==<br/>'Production deployment verified.<br/>System is live.'?"}
+    DepVer --> DepSat{"lastVerdict ==<br/>'Production deployment verified.<br/>System is live.'?"}
     DepSat -->|No| CapDep{"deploymentVerifyIterations<br/>>= 5?"}
-    CapDep -->|No| DepFix[deployment-fix-agent] --> PDep3["context-agent<br/>deployment-fix-log.md"] --> DepVer
+    CapDep -->|No| DepFix[deployment-fix-agent] --> PDep3["deployment-fix-log.md"] --> DepVer
     CapDep -->|Yes| Attention
     DepSat -->|Yes| Final(["Final Approval<br/>System is live on domain"])
 ```
@@ -589,23 +683,66 @@ flowchart LR
     F --> A
 ```
 
-## 6b. Production deployment loop (detail)
+## 6b. Production deployment loops (detail)
 
-Runs **only after** production approval. Linear stages (Minikube + Grafana → server provisioning → database → backend pods → Nginx + PM2) followed by a verify/fix loop.
+Runs **only after** production approval. **Five** generate → verify → fix loops run **in order** (platform → provision → database → backend → edge), then a **sixth** collective verify/fix loop (Om) audits the full live stack. Each sub-loop has its own exit phrase and counter (cap 5) — same mechanism as database and nginx.
 
 ```mermaid
 flowchart TB
-    R[deployment-platform-agent<br/>Minikube + Grafana] --> S[server-provision-agent]
-    S --> L[deployment-database-agent]
-    L --> M[deployment-backend-agent<br/>pods per microservice]
-    M --> A[deployment-edge-agent<br/>Nginx + PM2 frontend]
-    A --> V[deployment-verify-agent]
-    V --> OK{"Production deployment<br/>verified?"}
-    OK -->|Yes| Live([System live])
-    OK -->|No| Cap{deploymentVerifyIterations >= 5?}
-    Cap -->|Yes| Stop([Needs attention])
-    Cap -->|No| F[deployment-fix-agent] --> V
+    subgraph L1 [6b.1 Platform - Rajesh]
+        direction LR
+        G1[deployment-platform-agent] --> V1[deployment-platform-verify-agent]
+        V1 --> C1{"Deployment platform approved?"}
+        C1 -->|No| F1[deployment-platform-fix-agent] --> V1
+        C1 -->|Yes| Next1([→ Provision])
+    end
+    subgraph L2 [6b.2 Provision - Suresh]
+        direction LR
+        G2[server-provision-agent] --> V2[server-provision-verify-agent]
+        V2 --> C2{"Server provisioning approved?"}
+        C2 -->|No| F2[server-provision-fix-agent] --> V2
+        C2 -->|Yes| Next2([→ Database])
+    end
+    subgraph L3 [6b.3 Database - Lakshmi]
+        direction LR
+        G3[deployment-database-agent] --> V3[deployment-database-verify-agent]
+        V3 --> C3{"Deployment database approved?"}
+        C3 -->|No| F3[deployment-database-fix-agent] --> V3
+        C3 -->|Yes| Next3([→ Backend])
+    end
+    subgraph L4 [6b.4 Backend - Manoj]
+        direction LR
+        G4[deployment-backend-agent] --> V4[deployment-backend-verify-agent]
+        V4 --> C4{"Deployment backend approved?"}
+        C4 -->|No| F4[deployment-backend-fix-agent] --> V4
+        C4 -->|Yes| Next4([→ Edge])
+    end
+    subgraph L5 [6b.5 Edge - Asha]
+        direction LR
+        G5[deployment-edge-agent] --> V5[deployment-edge-verify-agent]
+        V5 --> C5{"Deployment edge approved?"}
+        C5 -->|No| F5[deployment-edge-fix-agent] --> V5
+        C5 -->|Yes| Next5([→ Final verify])
+    end
+    subgraph L6 [6b.6 Final collective - Om]
+        direction LR
+        V6[deployment-verify-agent] --> C6{"Production deployment verified.<br/>System is live."}
+        C6 -->|No| F6[deployment-fix-agent] --> V6
+        C6 -->|Yes| Live([System live])
+    end
+    L1 --> L2 --> L3 --> L4 --> L5 --> L6
 ```
+
+### Per-step deployment exit phrases
+
+| Step | Generate | Verify (readonly) | Fix | Counter | Exit phrase |
+|------|----------|-------------------|-----|---------|-------------|
+| Platform | `deployment-platform-agent` | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
+| Provision | `server-provision-agent` | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
+| Database | `deployment-database-agent` | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
+| Backend | `deployment-backend-agent` | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
+| Edge | `deployment-edge-agent` | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
+| Final | — | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
 
 ---
 
@@ -633,7 +770,7 @@ flowchart TD
 
 1. **The fixer cannot mark its own homework.** Only the readonly verify/audit agent can emit the exit phrase. A fix is "accepted" only when an independent re-audit passes.
 2. **Re-verification is from scratch.** The verify agent re-audits the real code with no memory of the fixes, so an incomplete fix is caught again.
-3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five documentation/API counters `swaggerVerifyIterations` / `javadocVerifyIterations` / `apiCollectionVerifyIterations` / `apiTestVerifyIterations` / `apiPerformanceTestVerifyIterations`; `productionVerifyIterations`).
+3. **One round = one iteration.** Each verify run increments that loop's own counter (`architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters; `systemIntegrationTestVerifyIterations`; the five documentation/API counters; `productionVerifyIterations`; `deploymentPlatformVerifyIterations`; `serverProvisionVerifyIterations`; `deploymentDatabaseVerifyIterations`; `deploymentBackendVerifyIterations`; `deploymentEdgeVerifyIterations`; `deploymentVerifyIterations`).
 4. **The cap is checked before fixing again.** If the counter hits `maxIterations` (default 5) without the exit phrase, the loop stops iterating (never an infinite loop). By default the pipeline does **not** halt — the stage is marked `needs-attention`, remaining items become notifications on the local + fleet dashboards, and Sunny continues to the next stage wherever technically possible; only a hard technical dependency causes a real `blocked` stop.
 5. **New findings are allowed.** A fix may surface fresh issues; they appear in the next report and are addressed in the next round (while under the cap).
 6. **Fixers never weaken controls.** They do not disable auth, loosen CORS to `*`, remove validation, lower coverage thresholds, or introduce mock data to force a pass — they fix the root cause.
@@ -643,7 +780,7 @@ flowchart TD
 10. **Exact phrase only.** Near-miss verdicts (typos, extra words) never advance; the verify agent is asked to re-emit the exact phrase.
 11. **Resume-safe checkpointing.** Maya writes `state.json`/`progress.json` atomically (temp + rename) after every handoff, marking a stage `active` on entry and `done` only on its exit verdict. If the run is interrupted, Sunny's Phase −1 resume check re-enters the `active` stage with counters intact — so a crash/reboot resumes from the last checkpoint instead of restarting, and never loses a cap or an "action required" item.
 
-### Same mechanism across all nineteen loops
+### Same mechanism across all twenty-four loops
 
 | Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
 |------|----------------------|-----------|---------|-------------|
@@ -665,7 +802,12 @@ flowchart TD
 | API tests | `api-test-verify-agent` | `api-test-fix-agent` | `apiTestVerifyIterations` | `API testing requirements satisfied.` |
 | API performance | `api-performance-test-verify-agent` | `api-performance-test-fix-agent` | `apiPerformanceTestVerifyIterations` | `API performance testing requirements satisfied.` |
 | Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
-| Deployment | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
+| Deploy platform | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
+| Deploy provision | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
+| Deploy database | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
+| Deploy backend | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
+| Deploy edge | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
+| Deploy final | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
 
 > Each side's three generation agents (unit/integration/functional) run once at the start; then each layer has its own verify/fix loop. On failure the layer's fix agent adds or repairs that layer's tests, then the layer re-verifies — the generators are not re-run.
 
@@ -1068,11 +1210,31 @@ stateDiagram-v2
     production_fix --> production: re-audit
     production --> deployment_platform: Final approval granted
 
-    deployment_platform --> deployment_provision
-    deployment_provision --> deployment_database
-    deployment_database --> deployment_backend
-    deployment_backend --> deployment_edge
-    deployment_edge --> deployment_verify
+    deployment_platform --> deployment_platform_verify
+    deployment_platform_verify --> deployment_platform_fix: not approved
+    deployment_platform_fix --> deployment_platform_verify: re-audit
+    deployment_platform_verify --> deployment_provision: Deployment platform approved
+
+    deployment_provision --> deployment_provision_verify
+    deployment_provision_verify --> deployment_provision_fix: not approved
+    deployment_provision_fix --> deployment_provision_verify: re-audit
+    deployment_provision_verify --> deployment_database: Server provisioning approved
+
+    deployment_database --> deployment_database_verify
+    deployment_database_verify --> deployment_database_fix: not approved
+    deployment_database_fix --> deployment_database_verify: re-audit
+    deployment_database_verify --> deployment_backend: Deployment database approved
+
+    deployment_backend --> deployment_backend_verify
+    deployment_backend_verify --> deployment_backend_fix: not approved
+    deployment_backend_fix --> deployment_backend_verify: re-audit
+    deployment_backend_verify --> deployment_edge: Deployment backend approved
+
+    deployment_edge --> deployment_edge_verify
+    deployment_edge_verify --> deployment_edge_fix: not approved
+    deployment_edge_fix --> deployment_edge_verify: re-audit
+    deployment_edge_verify --> deployment_verify: Deployment edge approved
+
     deployment_verify --> deployment_fix: not verified
     deployment_fix --> deployment_verify: re-audit
     deployment_verify --> complete: Production deployment verified
@@ -1201,5 +1363,10 @@ flowchart TB
 | **System integration exit** | `System integration testing requirements satisfied.` |
 | **Doc/API exits** | `Swagger documentation requirements satisfied.` / `Javadoc documentation requirements satisfied.` / `API collection requirements satisfied.` / `API testing requirements satisfied.` / `API performance testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Deployment exit** | `Production deployment verified. System is live.` |
+| **Deploy platform exit** | `Deployment platform approved.` |
+| **Deploy provision exit** | `Server provisioning approved.` |
+| **Deploy database exit** | `Deployment database approved.` |
+| **Deploy backend exit** | `Deployment backend approved.` |
+| **Deploy edge exit** | `Deployment edge approved.` |
+| **Deploy final exit** | `Production deployment verified. System is live.` |
 | **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`; `deploymentVerifyIterations`); exceeding it marks the stage `needs-attention` **before** launching the fix agent again and continues wherever technically possible. `phase = blocked` is reserved for a hard dependency that makes the next stage impossible. |

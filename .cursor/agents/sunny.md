@@ -81,12 +81,22 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Production audit | production-standards-agent | Audit all prior outputs + final security/readiness audit + comprehensive report |
 | Production repair | production-fix-agent | Remediate production audit findings |
 | Deploy platform | deployment-platform-agent | Minikube + Grafana + K8s skeleton |
-| Server provision | server-provision-agent | Install VPS deps (Node, Java, PG, Nginx, PM2) |
-| Deploy database | deployment-database-agent | Production PostgreSQL create + verify |
+| Deploy platform audit | deployment-platform-verify-agent | Verify Minikube, Helm, Grafana |
+| Deploy platform repair | deployment-platform-fix-agent | Fix platform findings |
+| Server provision | server-provision-agent | Install VPS dependencies |
+| Server provision audit | server-provision-verify-agent | Verify tools and prefetch |
+| Server provision repair | server-provision-fix-agent | Fix provisioning findings |
+| Deploy database | deployment-database-agent | Production PostgreSQL setup |
+| Deploy database audit | deployment-database-verify-agent | Verify DB and migrations |
+| Deploy database repair | deployment-database-fix-agent | Fix deployment DB findings |
 | Deploy backend | deployment-backend-agent | Minikube pods per microservice |
-| Deploy edge | deployment-edge-agent | Host Nginx + PM2 frontend + TLS |
-| Deploy audit | deployment-verify-agent | Final deployment port/integration audit |
-| Deploy repair | deployment-fix-agent | Fix deployment findings |
+| Deploy backend audit | deployment-backend-verify-agent | Verify pods, ports, Prometheus |
+| Deploy backend repair | deployment-backend-fix-agent | Fix backend deploy findings |
+| Deploy edge | deployment-edge-agent | Host Nginx + PM2 + TLS |
+| Deploy edge audit | deployment-edge-verify-agent | Verify routing, TLS, PM2 |
+| Deploy edge repair | deployment-edge-fix-agent | Fix edge findings |
+| Deploy final audit | deployment-verify-agent | Collective production audit |
+| Deploy final repair | deployment-fix-agent | Cross-tier remediation |
 
 ## Agent codenames
 
@@ -162,11 +172,13 @@ Frontend Input
     → Production (audits all prior outputs + comprehensive final report):
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
-    → Production deployment (VPS / Minikube):
-        deployment-platform-agent → server-provision-agent → deployment-database-agent
-        → deployment-backend-agent → deployment-edge-agent → context-agent (after each)
-        → deployment-verify-agent → context-agent
-        → [loop] deployment-fix-agent → context-agent → deployment-verify-agent
+    → Production deployment (VPS / Minikube — each sub-stage verify/fix, then final Om loop):
+        Platform:  deployment-platform-agent → context-agent → deployment-platform-verify-agent → [loop] deployment-platform-fix-agent
+        Provision: server-provision-agent → context-agent → server-provision-verify-agent → [loop] server-provision-fix-agent
+        Database:  deployment-database-agent → context-agent → deployment-database-verify-agent → [loop] deployment-database-fix-agent
+        Backend:   deployment-backend-agent → context-agent → deployment-backend-verify-agent → [loop] deployment-backend-fix-agent
+        Edge:      deployment-edge-agent → context-agent → deployment-edge-verify-agent → [loop] deployment-edge-fix-agent
+        Final:     deployment-verify-agent → context-agent → [loop] deployment-fix-agent
     → Final Approval (system live)
 ```
 
@@ -190,7 +202,12 @@ Frontend Input
 - **API tests:** `API testing requirements satisfied.`
 - **API performance:** `API performance testing requirements satisfied.`
 - **Production approved:** `Final approval granted. System is production-ready.`
-- **Deployment verified:** `Production deployment verified. System is live.`
+- **Deploy platform:** `Deployment platform approved.`
+- **Deploy provision:** `Server provisioning approved.`
+- **Deploy database:** `Deployment database approved.`
+- **Deploy backend:** `Deployment backend approved.`
+- **Deploy edge:** `Deployment edge approved.`
+- **Deploy final:** `Production deployment verified. System is live.`
 
 ## Loop guardrails
 

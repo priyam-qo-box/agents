@@ -162,10 +162,20 @@ So the answer to "do they get blocked?": **no for internal secrets** (the agent 
 | Supabase Removal Verify Agent | `supabase-removal-verify-agent` | true |
 | Supabase Removal Fix Agent | `supabase-removal-fix-agent` | false |
 | Deployment Platform Agent | `deployment-platform-agent` | false |
+| Deployment Platform Verify Agent | `deployment-platform-verify-agent` | true |
+| Deployment Platform Fix Agent | `deployment-platform-fix-agent` | false |
 | Server Provisioning Agent | `server-provision-agent` | false |
+| Server Provisioning Verify Agent | `server-provision-verify-agent` | true |
+| Server Provisioning Fix Agent | `server-provision-fix-agent` | false |
 | Deployment Database Agent | `deployment-database-agent` | false |
+| Deployment Database Verify Agent | `deployment-database-verify-agent` | true |
+| Deployment Database Fix Agent | `deployment-database-fix-agent` | false |
 | Deployment Backend Agent | `deployment-backend-agent` | false |
+| Deployment Backend Verify Agent | `deployment-backend-verify-agent` | true |
+| Deployment Backend Fix Agent | `deployment-backend-fix-agent` | false |
 | Deployment Edge Agent | `deployment-edge-agent` | false |
+| Deployment Edge Verify Agent | `deployment-edge-verify-agent` | true |
+| Deployment Edge Fix Agent | `deployment-edge-fix-agent` | false |
 | Deployment Verify Agent | `deployment-verify-agent` | true |
 | Deployment Fix Agent | `deployment-fix-agent` | false |
 | Fleet Host Agent (standalone) | `fleet-host-agent` | false |
@@ -194,12 +204,12 @@ Each agent has a human codename (a family base name + `Verify`/`Fix`). Refer to 
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
 | Kiran (supabase removal) | Kiran — `supabase-removal-agent` | Kiran Verify — `supabase-removal-verify-agent` | Kiran Fix — `supabase-removal-fix-agent` |
-| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | — | — |
-| Suresh (server provision) | Suresh — `server-provision-agent` | — | — |
-| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | — | — |
-| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | — | — |
-| Asha (deploy edge) | Asha — `deployment-edge-agent` | — | — |
-| Om (deploy verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | Rajesh Verify — `deployment-platform-verify-agent` | Rajesh Fix — `deployment-platform-fix-agent` |
+| Suresh (server provision) | Suresh — `server-provision-agent` | Suresh Verify — `server-provision-verify-agent` | Suresh Fix — `server-provision-fix-agent` |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | Lakshmi Verify — `deployment-database-verify-agent` | Lakshmi Fix — `deployment-database-fix-agent` |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | Manoj Verify — `deployment-backend-verify-agent` | Manoj Fix — `deployment-backend-fix-agent` |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` | Asha Verify — `deployment-edge-verify-agent` | Asha Fix — `deployment-edge-fix-agent` |
+| Om (deploy final verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
 | Hari (fleet host, standalone) | Hari — `fleet-host-agent` | — | — |
 
 **Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
@@ -271,12 +281,16 @@ Frontend Input → Sunny
       → [loop if blocked] production-fix-agent → context-agent → production-standards-agent
   → Production deployment (VPS / Minikube — only after production approval):
       deployment-platform-agent → context-agent
+      → [loop] deployment-platform-verify-agent → deployment-platform-fix-agent
       → server-provision-agent → context-agent
+      → [loop] server-provision-verify-agent → server-provision-fix-agent
       → deployment-database-agent → context-agent
+      → [loop] deployment-database-verify-agent → deployment-database-fix-agent
       → deployment-backend-agent → context-agent
+      → [loop] deployment-backend-verify-agent → deployment-backend-fix-agent
       → deployment-edge-agent → context-agent
-      → deployment-verify-agent → context-agent
-      → [loop if not verified] deployment-fix-agent → context-agent → deployment-verify-agent
+      → [loop] deployment-edge-verify-agent → deployment-edge-fix-agent
+      → [loop] deployment-verify-agent → deployment-fix-agent
   → Final Approval (app live on domain)
 ```
 
@@ -537,44 +551,111 @@ After the exit phrase, proceed to **Phase 5 — Production deployment** (do not 
 
 ## Phase 5 — Production deployment (VPS / Minikube)
 
-Runs **only after** `Final approval granted. System is production-ready.` Deploys the application on the production VPS using **Minikube** for microservices, **kube-prometheus-stack** (Prometheus + Grafana) for observability, host **Nginx** + **PM2** for the edge, and a real **PostgreSQL** instance. Linear generate stages followed by a verify/fix loop.
+Runs **only after** `Final approval granted. System is production-ready.` Each deployment sub-stage follows the **same generate → verify → fix loop** as architecture, database, and nginx: one generate agent, then a readonly verify agent with an exact exit phrase, then a fix agent on failure (cap 5 per loop). A **final** collective verify/fix loop (Om) audits the whole live stack end-to-end before `phase: complete`.
 
-**Production non-negotiables (deployment phase):**
+**Production non-negotiables:** Minikube production profile; kube-prometheus-stack; probes + limits on every pod; Grafana + Sunny `progress.json` integration; `deploy/port-map.md`; host Nginx TLS + PM2; `deploy/scripts/health-check.sh` green before Om final approval.
 
-- Minikube started with explicit CPU/RAM profile (not default dev sizing).
-- **kube-prometheus-stack** Helm release — Grafana without Prometheus scrape is insufficient.
-- Every pod: liveness + readiness + startup probes, resource requests/limits, non-`latest` image tags.
-- **Grafana integration on point:** Prometheus datasource green; Sunny `progress.json` panel live; `sunny-deployment` dashboard shows JVM/HTTP metrics.
-- `deploy/port-map.md` authoritative; Om verifies every port live.
-- Host Nginx TLS (Let's Encrypt); PM2 frontend with `pm2 startup`.
-- `deploy/scripts/health-check.sh` must pass before Om can approve.
+### 5.1 Deployment platform loop (Rajesh)
 
-**Prerequisites:** user is logged into the target VPS (or Sunny runs there). For domain/ports Asha may raise `needs-input` for domain URL and listen ports if not already in `project-context.md`.
-
-**Exit phrase (must match exactly):** `Production deployment verified. System is live.`
+**Exit phrase:** `Deployment platform approved.`
 
 ```
-1. Launch deployment-platform-agent (Minikube + Grafana + K8s skeleton)
-2. Launch context-agent to persist deployment-platform-summary.md
-3. Launch server-provision-agent (install Node, Java, PostgreSQL, Nginx, PM2, etc.)
-4. Launch context-agent to persist server-provision-summary.md
-5. Launch deployment-database-agent (create DB, password from user or generated)
-6. Launch context-agent to persist deployment-database-summary.md
-7. Launch deployment-backend-agent (Minikube pods, distinct ports per microservice)
-8. Launch context-agent to persist deployment-backend-summary.md
-9. Launch deployment-edge-agent (Nginx reverse proxy, PM2 frontend, TLS, connect tiers)
-10. Launch context-agent to persist deployment-edge-summary.md
+1. Launch deployment-platform-agent
+2. Launch context-agent → deployment-platform-summary.md
 repeat:
-  11. Launch deployment-verify-agent (readonly) with FULL deployment context
-  12. Launch context-agent to persist deployment-verify-report.md
-  13. Read state.json — if lastVerdict == exit phrase → break to Final Approval (phase complete)
-  14. If deploymentVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications, set phase complete with outstanding deployment items listed
-  15. Launch deployment-fix-agent with the verify findings
-  16. Launch context-agent to append deployment-fix-log.md
-  17. goto repeat
+  3. Launch deployment-platform-verify-agent (readonly)
+  4. Launch context-agent → deployment-platform-verify-report.md
+  5. if lastVerdict == exit phrase → break to 5.2
+  6. if deploymentPlatformVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Launch deployment-platform-fix-agent
+  8. Launch context-agent → deployment-platform-fix-log.md
+  9. goto repeat
 ```
 
-After deployment exit phrase, present the final summary: live URLs, Grafana dashboard, credentials location (`.env` on server), port map, and run guide.
+### 5.2 Server provisioning loop (Suresh)
+
+**Exit phrase:** `Server provisioning approved.`
+
+```
+1. Launch server-provision-agent
+2. Launch context-agent → server-provision-summary.md
+repeat:
+  3. Launch server-provision-verify-agent (readonly)
+  4. Launch context-agent → server-provision-verify-report.md
+  5. if lastVerdict == exit phrase → break to 5.3
+  6. if serverProvisionVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Launch server-provision-fix-agent
+  8. Launch context-agent → server-provision-fix-log.md
+  9. goto repeat
+```
+
+### 5.3 Deployment database loop (Lakshmi)
+
+**Exit phrase:** `Deployment database approved.`
+
+```
+1. Launch deployment-database-agent
+2. Launch context-agent → deployment-database-summary.md
+repeat:
+  3. Launch deployment-database-verify-agent (readonly)
+  4. Launch context-agent → deployment-database-verify-report.md
+  5. if lastVerdict == exit phrase → break to 5.4
+  6. if deploymentDatabaseVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Launch deployment-database-fix-agent
+  8. Launch context-agent → deployment-database-fix-log.md
+  9. goto repeat
+```
+
+### 5.4 Deployment backend loop (Manoj)
+
+**Exit phrase:** `Deployment backend approved.`
+
+```
+1. Launch deployment-backend-agent
+2. Launch context-agent → deployment-backend-summary.md
+repeat:
+  3. Launch deployment-backend-verify-agent (readonly)
+  4. Launch context-agent → deployment-backend-verify-report.md
+  5. if lastVerdict == exit phrase → break to 5.5
+  6. if deploymentBackendVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Launch deployment-backend-fix-agent
+  8. Launch context-agent → deployment-backend-fix-log.md
+  9. goto repeat
+```
+
+### 5.5 Deployment edge loop (Asha)
+
+**Exit phrase:** `Deployment edge approved.`
+
+```
+1. Launch deployment-edge-agent
+2. Launch context-agent → deployment-edge-summary.md
+repeat:
+  3. Launch deployment-edge-verify-agent (readonly)
+  4. Launch context-agent → deployment-edge-verify-report.md
+  5. if lastVerdict == exit phrase → break to 5.6
+  6. if deploymentEdgeVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Launch deployment-edge-fix-agent
+  8. Launch context-agent → deployment-edge-fix-log.md
+  9. goto repeat
+```
+
+### 5.6 Final deployment verification loop (Om)
+
+**Exit phrase:** `Production deployment verified. System is live.`
+
+```
+repeat:
+  1. Launch deployment-verify-agent (readonly) with FULL deployment context
+  2. Launch context-agent → deployment-verify-report.md
+  3. if lastVerdict == exit phrase → break to Final Approval (phase complete)
+  4. if deploymentVerifyIterations >= 5 → needs-attention; complete with outstanding items listed
+  5. Launch deployment-fix-agent
+  6. Launch context-agent → deployment-fix-log.md
+  7. goto repeat
+```
+
+After final exit phrase: live URLs, Grafana dashboard, `.env` credential location, port map, run guide.
 
 ## Loop safety & edge cases (no infinite loops)
 

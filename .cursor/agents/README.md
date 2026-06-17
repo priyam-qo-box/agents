@@ -79,12 +79,22 @@ These constraints are enforced by every relevant agent:
 | 54 | **Production Standards Agent** | `production-standards-agent.md` | Audits all prior outputs + final security/readiness audit + comprehensive report | Yes |
 | 55 | **Production Fix Agent** | `production-fix-agent.md` | Remediates production audit findings | No |
 | 56 | **Deployment Platform Agent** | `deployment-platform-agent.md` | Minikube + Grafana + K8s skeleton | No |
-| 57 | **Server Provisioning Agent** | `server-provision-agent.md` | Installs VPS dependencies (Node, Java, PG, Nginx, PM2) | No |
-| 58 | **Deployment Database Agent** | `deployment-database-agent.md` | Production PostgreSQL setup + credentials | No |
-| 59 | **Deployment Backend Agent** | `deployment-backend-agent.md` | Minikube pods per microservice | No |
-| 60 | **Deployment Edge Agent** | `deployment-edge-agent.md` | Host Nginx + PM2 frontend + TLS | No |
-| 61 | **Deployment Verify Agent** | `deployment-verify-agent.md` | Final deployment audit (all ports + integration) | Yes |
-| 62 | **Deployment Fix Agent** | `deployment-fix-agent.md` | Remediates deployment findings | No |
+| 57 | **Deployment Platform Verify Agent** | `deployment-platform-verify-agent.md` | Audits Minikube, Helm, Grafana provisioning | Yes |
+| 58 | **Deployment Platform Fix Agent** | `deployment-platform-fix-agent.md` | Fixes platform findings | No |
+| 59 | **Server Provisioning Agent** | `server-provision-agent.md` | Installs VPS dependencies | No |
+| 60 | **Server Provisioning Verify Agent** | `server-provision-verify-agent.md` | Audits tools and prefetch | Yes |
+| 61 | **Server Provisioning Fix Agent** | `server-provision-fix-agent.md` | Fixes provisioning findings | No |
+| 62 | **Deployment Database Agent** | `deployment-database-agent.md` | Production PostgreSQL setup | No |
+| 63 | **Deployment Database Verify Agent** | `deployment-database-verify-agent.md` | Audits DB, migrations, connectivity | Yes |
+| 64 | **Deployment Database Fix Agent** | `deployment-database-fix-agent.md` | Fixes deployment DB findings | No |
+| 65 | **Deployment Backend Agent** | `deployment-backend-agent.md` | Minikube pods per microservice | No |
+| 66 | **Deployment Backend Verify Agent** | `deployment-backend-verify-agent.md` | Audits pods, ports, Prometheus | Yes |
+| 67 | **Deployment Backend Fix Agent** | `deployment-backend-fix-agent.md` | Fixes backend deploy findings | No |
+| 68 | **Deployment Edge Agent** | `deployment-edge-agent.md` | Host Nginx + PM2 frontend + TLS | No |
+| 69 | **Deployment Edge Verify Agent** | `deployment-edge-verify-agent.md` | Audits routing, TLS, PM2 | Yes |
+| 70 | **Deployment Edge Fix Agent** | `deployment-edge-fix-agent.md` | Fixes edge findings | No |
+| 71 | **Deployment Verify Agent** | `deployment-verify-agent.md` | Final collective production audit | Yes |
+| 72 | **Deployment Fix Agent** | `deployment-fix-agent.md` | Final cross-tier remediation | No |
 
 ---
 
@@ -112,12 +122,12 @@ Every agent has a human codename. A family shares a base name and its verify/fix
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
-| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | — | — |
-| Suresh (server provision) | Suresh — `server-provision-agent` | — | — |
-| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | — | — |
-| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | — | — |
-| Asha (deploy edge) | Asha — `deployment-edge-agent` | — | — |
-| Om (deploy verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | Rajesh Verify — `deployment-platform-verify-agent` | Rajesh Fix — `deployment-platform-fix-agent` |
+| Suresh (server provision) | Suresh — `server-provision-agent` | Suresh Verify — `server-provision-verify-agent` | Suresh Fix — `server-provision-fix-agent` |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | Lakshmi Verify — `deployment-database-verify-agent` | Lakshmi Fix — `deployment-database-fix-agent` |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | Manoj Verify — `deployment-backend-verify-agent` | Manoj Fix — `deployment-backend-fix-agent` |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` | Asha Verify — `deployment-edge-verify-agent` | Asha Fix — `deployment-edge-fix-agent` |
+| Om (deploy final) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
 
 **Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
 
@@ -416,7 +426,12 @@ The orchestrator looks for **exact** verdict phrases to exit each loop:
 | API tests | `API testing requirements satisfied.` | API Test Verify Agent |
 | API performance | `API performance testing requirements satisfied.` | API Performance Test Verify Agent |
 | Production | `Final approval granted. System is production-ready.` | Production Standards Agent |
-| Deployment | `Production deployment verified. System is live.` | Deployment Verify Agent |
+| Deploy platform | `Deployment platform approved.` | Deployment Platform Verify Agent |
+| Deploy provision | `Server provisioning approved.` | Server Provisioning Verify Agent |
+| Deploy database | `Deployment database approved.` | Deployment Database Verify Agent |
+| Deploy backend | `Deployment backend approved.` | Deployment Backend Verify Agent |
+| Deploy edge | `Deployment edge approved.` | Deployment Edge Verify Agent |
+| Deploy final | `Production deployment verified. System is live.` | Deployment Verify Agent |
 
 Each loop has a **max-iteration cap (default 5)** tracked in `state.json`. Each loop has its own counter: `architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); `productionVerifyIterations`; and `deploymentVerifyIterations`. Stages run in order (architecture → supabase removal → backend → database → nginx & SSL → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production → deployment); within a side the layers run in order (unit → integration → functional). If any loop hits the cap without its exit phrase, Sunny marks that stage `needs-attention`, records the open findings as dashboard notifications, and continues wherever technically possible; it sets `phase: "blocked"` only when a hard dependency makes the next stage impossible.
 
