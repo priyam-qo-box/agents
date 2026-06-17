@@ -39,7 +39,7 @@ The pipeline is long-running, so it must **never lose its place**. All durable s
    4. **Confirm the graph is current:** if `graphUpdatedAt` is stale or `graphify-out/` is missing, run `graphify update <project-root>` (or `graphify .` to bootstrap) before launching the next agent.
    5. **Find the resume point:** the current stage is the one marked `active` in `stages[]` (or the first non-`done` stage). Re-enter that stage's phase loop and **re-run its last in-flight agent** (idempotent, so safe) before continuing; **skip every stage already marked `done`.**
    6. **Preserve iteration counters** from `state.json` so loop caps still apply across resumes (a run can't dodge its cap by restarting).
-   7. **Announce:** `Resuming {project}: stage {label} ({n}/15), iteration {i}.` Then continue the phase machine exactly as a normal run.
+   7. **Announce:** `Resuming {project}: stage {label} ({n}/22), iteration {i}.` Then continue the phase machine exactly as a normal run.
 
 > Resume is **safe to repeat**: if a resumed run is interrupted again, the next invocation picks up from the new checkpoint. Caps and blockers carry forward, so resuming never causes infinite loops or lost "action required" asks.
 
@@ -158,6 +158,16 @@ So the answer to "do they get blocked?": **no for internal secrets** (the agent 
 | API Performance Test Fix Agent | `api-performance-test-fix-agent` | false |
 | Production Standards Agent | `production-standards-agent` | true |
 | Production Fix Agent | `production-fix-agent` | false |
+| Supabase & Lovable Removal Agent | `supabase-removal-agent` | false |
+| Supabase Removal Verify Agent | `supabase-removal-verify-agent` | true |
+| Supabase Removal Fix Agent | `supabase-removal-fix-agent` | false |
+| Deployment Platform Agent | `deployment-platform-agent` | false |
+| Server Provisioning Agent | `server-provision-agent` | false |
+| Deployment Database Agent | `deployment-database-agent` | false |
+| Deployment Backend Agent | `deployment-backend-agent` | false |
+| Deployment Edge Agent | `deployment-edge-agent` | false |
+| Deployment Verify Agent | `deployment-verify-agent` | true |
+| Deployment Fix Agent | `deployment-fix-agent` | false |
 | Fleet Host Agent (standalone) | `fleet-host-agent` | false |
 
 ## Agent codenames
@@ -183,6 +193,13 @@ Each agent has a human codename (a family base name + `Verify`/`Fix`). Refer to 
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
+| Kiran (supabase removal) | Kiran — `supabase-removal-agent` | Kiran Verify — `supabase-removal-verify-agent` | Kiran Fix — `supabase-removal-fix-agent` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | — | — |
+| Suresh (server provision) | Suresh — `server-provision-agent` | — | — |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | — | — |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | — | — |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` | — | — |
+| Om (deploy verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
 | Hari (fleet host, standalone) | Hari — `fleet-host-agent` | — | — |
 
 **Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
@@ -202,6 +219,9 @@ Frontend Input → Sunny
   → Architecture:
       architecture-agent → context-agent → architecture-verify-agent
       → [loop if not approved] architecture-fix-agent → context-agent → architecture-verify-agent
+  → Supabase & Lovable removal (before backend generation):
+      supabase-removal-agent → context-agent → supabase-removal-verify-agent
+      → [loop if not complete] supabase-removal-fix-agent → context-agent → supabase-removal-verify-agent
   → jhipster-backend-agent
   → context-agent
   → jhipster-verify-agent
@@ -249,7 +269,15 @@ Frontend Input → Sunny
   → Production:
       production-standards-agent → context-agent
       → [loop if blocked] production-fix-agent → context-agent → production-standards-agent
-  → Final Approval
+  → Production deployment (VPS / Minikube — only after production approval):
+      deployment-platform-agent → context-agent
+      → server-provision-agent → context-agent
+      → deployment-database-agent → context-agent
+      → deployment-backend-agent → context-agent
+      → deployment-edge-agent → context-agent
+      → deployment-verify-agent → context-agent
+      → [loop if not verified] deployment-fix-agent → context-agent → deployment-verify-agent
+  → Final Approval (app live on domain)
 ```
 
 ## Phase 0 — Intake
@@ -288,6 +316,25 @@ repeat:
   6. If architectureVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications (local + fleet), continue to next stage (set blocked + stop only if a hard dependency makes continuing impossible)
   7. Launch architecture-fix-agent with the verify findings
   8. Launch context-agent to append architecture-fix-log.md
+  9. goto repeat
+```
+
+## Phase 0.65 — Supabase & Lovable removal loop
+
+Runs **after** architecture is approved and **before** JHipster backend generation. Removes all Supabase and `.lovable` usage from the frontend, replaces with REST API clients aligned to the architecture, and **deletes** the entire `supabase/` and `.lovable/` folders.
+
+**Exit phrase (must match exactly):** `Supabase and Lovable removal complete.`
+
+```
+1. Launch supabase-removal-agent with handoff (architecture-summary.md, project-context.md)
+2. Launch context-agent to persist supabase-removal-summary.md
+repeat:
+  3. Launch supabase-removal-verify-agent (readonly) with context handoff
+  4. Launch context-agent to persist supabase-removal-verify-report.md
+  5. Read state.json — if lastVerdict == exit phrase → break to Phase 1
+  6. If supabaseRemovalVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications, continue to Phase 1 only if backend generation can proceed without removal (hard-block if Supabase folders/calls remain)
+  7. Launch supabase-removal-fix-agent with the verify findings
+  8. Launch context-agent to append supabase-removal-fix-log.md
   9. goto repeat
 ```
 
@@ -486,7 +533,48 @@ repeat:
   7. goto repeat
 ```
 
-After the exit phrase, present the final summary to the user: architecture, coverage, security, production readiness, run guide.
+After the exit phrase, proceed to **Phase 5 — Production deployment** (do not mark `complete` until deployment is verified).
+
+## Phase 5 — Production deployment (VPS / Minikube)
+
+Runs **only after** `Final approval granted. System is production-ready.` Deploys the application on the production VPS using **Minikube** for microservices, **kube-prometheus-stack** (Prometheus + Grafana) for observability, host **Nginx** + **PM2** for the edge, and a real **PostgreSQL** instance. Linear generate stages followed by a verify/fix loop.
+
+**Production non-negotiables (deployment phase):**
+
+- Minikube started with explicit CPU/RAM profile (not default dev sizing).
+- **kube-prometheus-stack** Helm release — Grafana without Prometheus scrape is insufficient.
+- Every pod: liveness + readiness + startup probes, resource requests/limits, non-`latest` image tags.
+- **Grafana integration on point:** Prometheus datasource green; Sunny `progress.json` panel live; `sunny-deployment` dashboard shows JVM/HTTP metrics.
+- `deploy/port-map.md` authoritative; Om verifies every port live.
+- Host Nginx TLS (Let's Encrypt); PM2 frontend with `pm2 startup`.
+- `deploy/scripts/health-check.sh` must pass before Om can approve.
+
+**Prerequisites:** user is logged into the target VPS (or Sunny runs there). For domain/ports Asha may raise `needs-input` for domain URL and listen ports if not already in `project-context.md`.
+
+**Exit phrase (must match exactly):** `Production deployment verified. System is live.`
+
+```
+1. Launch deployment-platform-agent (Minikube + Grafana + K8s skeleton)
+2. Launch context-agent to persist deployment-platform-summary.md
+3. Launch server-provision-agent (install Node, Java, PostgreSQL, Nginx, PM2, etc.)
+4. Launch context-agent to persist server-provision-summary.md
+5. Launch deployment-database-agent (create DB, password from user or generated)
+6. Launch context-agent to persist deployment-database-summary.md
+7. Launch deployment-backend-agent (Minikube pods, distinct ports per microservice)
+8. Launch context-agent to persist deployment-backend-summary.md
+9. Launch deployment-edge-agent (Nginx reverse proxy, PM2 frontend, TLS, connect tiers)
+10. Launch context-agent to persist deployment-edge-summary.md
+repeat:
+  11. Launch deployment-verify-agent (readonly) with FULL deployment context
+  12. Launch context-agent to persist deployment-verify-report.md
+  13. Read state.json — if lastVerdict == exit phrase → break to Final Approval (phase complete)
+  14. If deploymentVerifyIterations >= maxIterations (5) → cap reached: mark stage needs-attention, surface notifications, set phase complete with outstanding deployment items listed
+  15. Launch deployment-fix-agent with the verify findings
+  16. Launch context-agent to append deployment-fix-log.md
+  17. goto repeat
+```
+
+After deployment exit phrase, present the final summary: live URLs, Grafana dashboard, credentials location (`.env` on server), port map, and run guide.
 
 ## Loop safety & edge cases (no infinite loops)
 

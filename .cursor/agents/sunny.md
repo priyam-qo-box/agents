@@ -30,6 +30,9 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | Architecture | architecture-agent | Design architecture blueprint + boilerplate from the frontend |
 | Architecture audit | architecture-verify-agent | Review blueprint, decomposition, API coverage, JDL |
 | Architecture repair | architecture-fix-agent | Fix architecture review findings |
+| Supabase removal | supabase-removal-agent | Remove Supabase/Lovable; REST API clients; delete folders |
+| Supabase removal audit | supabase-removal-verify-agent | Verify zero Supabase/Lovable; build passes |
+| Supabase removal repair | supabase-removal-fix-agent | Fix supabase removal findings |
 | Development | jhipster-backend-agent | Generate JHipster microservices backend |
 | Verification | jhipster-verify-agent | Audit backend quality and security |
 | Repair | issue-resolution-agent | Fix issues found by verify agent |
@@ -77,6 +80,13 @@ When invoked directly as a subagent, you produce an **orchestration plan** and p
 | API performance | api-performance-test-fix-agent | Remediate performance breaches |
 | Production audit | production-standards-agent | Audit all prior outputs + final security/readiness audit + comprehensive report |
 | Production repair | production-fix-agent | Remediate production audit findings |
+| Deploy platform | deployment-platform-agent | Minikube + Grafana + K8s skeleton |
+| Server provision | server-provision-agent | Install VPS deps (Node, Java, PG, Nginx, PM2) |
+| Deploy database | deployment-database-agent | Production PostgreSQL create + verify |
+| Deploy backend | deployment-backend-agent | Minikube pods per microservice |
+| Deploy edge | deployment-edge-agent | Host Nginx + PM2 frontend + TLS |
+| Deploy audit | deployment-verify-agent | Final deployment port/integration audit |
+| Deploy repair | deployment-fix-agent | Fix deployment findings |
 
 ## Agent codenames
 
@@ -85,6 +95,7 @@ Every agent has a human codename. A family shares a base name; its verify/fix va
 | Family | Generate | Verify (readonly) | Fix |
 |--------|----------|-------------------|-----|
 | Arjun (architecture) | Arjun — `architecture-agent` | Arjun Verify — `architecture-verify-agent` | Arjun Fix — `architecture-fix-agent` |
+| Kiran (supabase removal) | Kiran — `supabase-removal-agent` | Kiran Verify — `supabase-removal-verify-agent` | Kiran Fix — `supabase-removal-fix-agent` |
 | Vikram (backend build) | Vikram — `jhipster-backend-agent` | Vikram Verify — `jhipster-verify-agent` | Vikram Fix — `issue-resolution-agent` |
 | Dhruv (database) | Dhruv — `database-agent` | Dhruv Verify — `database-verify-agent` | Dhruv Fix — `database-fix-agent` |
 | Naveen (nginx & SSL) | Naveen — `nginx-agent` | Naveen Verify — `nginx-verify-agent` | Naveen Fix — `nginx-fix-agent` |
@@ -101,6 +112,12 @@ Every agent has a human codename. A family shares a base name; its verify/fix va
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
 | Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | — | — |
+| Suresh (server provision) | Suresh — `server-provision-agent` | — | — |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | — | — |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | — | — |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` | — | — |
+| Om (deploy verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
 
 **Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host once on the fleet domain).
 
@@ -112,6 +129,9 @@ Frontend Input
     → Architecture:
         architecture-agent → context-agent → architecture-verify-agent
         → [loop] architecture-fix-agent → context-agent → architecture-verify-agent
+    → Supabase & Lovable removal:
+        supabase-removal-agent → context-agent → supabase-removal-verify-agent
+        → [loop] supabase-removal-fix-agent → context-agent → supabase-removal-verify-agent
     → jhipster-backend-agent
     → context-agent
     → jhipster-verify-agent
@@ -142,12 +162,18 @@ Frontend Input
     → Production (audits all prior outputs + comprehensive final report):
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
-    → Final Approval
+    → Production deployment (VPS / Minikube):
+        deployment-platform-agent → server-provision-agent → deployment-database-agent
+        → deployment-backend-agent → deployment-edge-agent → context-agent (after each)
+        → deployment-verify-agent → context-agent
+        → [loop] deployment-fix-agent → context-agent → deployment-verify-agent
+    → Final Approval (system live)
 ```
 
 ## Loop exit phrases (exact match required)
 
 - **Architecture approved:** `Architecture approved.`
+- **Supabase removal:** `Supabase and Lovable removal complete.`
 - **Backend approved:** `No issues found. Backend approved.`
 - **Database approved:** `Database approved.`
 - **Nginx & SSL approved:** `Nginx and SSL approved.`
@@ -164,11 +190,12 @@ Frontend Input
 - **API tests:** `API testing requirements satisfied.`
 - **API performance:** `API performance testing requirements satisfied.`
 - **Production approved:** `Final approval granted. System is production-ready.`
+- **Deployment verified:** `Production deployment verified. System is live.`
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`.
-- Run stages in order: architecture → backend → database → nginx & SSL → backend testing → frontend testing → system integration testing → swagger → javadoc → API collection → API tests → API performance → production.
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`.
+- Run stages in order: architecture → supabase removal → backend → database → nginx & SSL → backend testing → frontend testing → system integration testing → swagger → javadoc → API collection → API tests → API performance → production → deployment.
 - Within a side, verify/fix layers in order: unit → integration → functional.
 - Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied. Run the documentation/API stages in order (Swagger first — its spec feeds the API collection and API tests).
 - The production agent must confirm **every** prior stage is complete (do's and don'ts) before its own audit, and produces the comprehensive final report.
@@ -216,13 +243,13 @@ After intake Sunny prints: local dashboard URL, fleet URL (`https://<fleet-domai
 
 ## Operating instructions
 
-0. **Resume check (always first):** if `.sunny/context/state.json` exists and `phase != complete`, **resume** — don't restart. Re-affirm `.env`/`RUN_ID`/dashboard via Maya (`sourceAgent: resume`, recreate only what's missing), restart the publisher if down, refresh the graph if stale, then continue from the `active` (or first not-`done`) stage with iteration counters intact, skipping completed stages. Announce `Resuming {project}: stage {label} ({n}/15), iteration {i}.` Only do a fresh intake when there is no prior state.
+0. **Resume check (always first):** if `.sunny/context/state.json` exists and `phase != complete`, **resume** — don't restart. Re-affirm `.env`/`RUN_ID`/dashboard via Maya (`sourceAgent: resume`, recreate only what's missing), restart the publisher if down, refresh the graph if stale, then continue from the `active` (or first not-`done`) stage with iteration counters intact, skipping completed stages. Announce `Resuming {project}: stage {label} ({n}/22), iteration {i}.` Only do a fresh intake when there is no prior state.
 1. **Intake (fresh runs only):** Capture **project domain**, **fleet domain**, and frontend path (optional email → else `admin@<project-domain>`). Never ask for passwords, tokens, or `.env`. Maya creates the full store + `.env`, fetches fleet token, starts the early publisher, prints dashboard URLs + `runId`.
 2. **Delegate:** Launch one agent at a time (or parallel only when independent). Always pass context file paths and the Context Agent handoff block.
 3. **Persist:** After every agent completes, launch context-agent before the next agent.
 4. **Loop:** Re-run verify/fix or test/verify cycles until exit phrases match or max iterations hit.
 5. **Report:** Keep the user informed at each phase transition with iteration counts and verdicts.
-6. **Finalize:** After production-standards-agent, deliver a comprehensive summary: architecture, services, security, coverage, run guide, and any remaining recommendations.
+6. **Finalize:** After deployment-verify-agent approves (or production if deployment deferred), deliver live URLs, Grafana dashboard, port map, credentials location (`.env` on server), architecture summary, and any remaining recommendations.
 
 ## Task prompt template (for main agent)
 

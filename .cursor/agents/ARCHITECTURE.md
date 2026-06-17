@@ -8,12 +8,13 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 
 ## 0. System at a glance
 
-**52 orchestrated agents** (plus 2 standalone agents: `documentation` and `fleet-host-agent`), driven through **17 bounded verify/fix loops**.
+**62 orchestrated agents** (plus 2 standalone agents: `documentation` and `fleet-host-agent`), driven through **19 bounded verify/fix loops**.
 
 | Group | Count | Agents |
 |-------|-------|--------|
 | Orchestration & memory | 2 | `sunny`, `context-agent` |
 | Architecture & boilerplate | 3 | `architecture-agent`, `architecture-verify-agent` (readonly), `architecture-fix-agent` |
+| Supabase & Lovable removal | 3 | `supabase-removal-agent`, `supabase-removal-verify-agent` (readonly), `supabase-removal-fix-agent` |
 | Backend build & verify | 3 | `jhipster-backend-agent`, `jhipster-verify-agent` (readonly), `issue-resolution-agent` |
 | Database | 3 | `database-agent`, `database-verify-agent` (readonly), `database-fix-agent` |
 | Nginx & SSL edge | 3 | `nginx-agent`, `nginx-verify-agent` (readonly), `nginx-fix-agent` |
@@ -26,15 +27,16 @@ Visual reference for the Sunny multi-agent system: component architecture, contr
 | API tests (status) | 3 | `api-test-agent`, `api-test-verify-agent` (readonly), `api-test-fix-agent` |
 | API performance (1/10/20/30) | 3 | `api-performance-test-agent`, `api-performance-test-verify-agent` (readonly), `api-performance-test-fix-agent` |
 | Production | 2 | `production-standards-agent` (readonly), `production-fix-agent` |
+| Production deployment (VPS / Minikube) | 7 | `deployment-platform-agent`, `server-provision-agent`, `deployment-database-agent`, `deployment-backend-agent`, `deployment-edge-agent`, `deployment-verify-agent` (readonly), `deployment-fix-agent` |
 | Standalone (not orchestrated) | 2 | `documentation`, `fleet-host-agent` |
 
-- **17 verify/fix loops:** architecture + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production.
-- **17 readonly auditors:** `architecture-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, and `production-standards-agent`.
-- **Pipeline order:** architecture → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production.
+- **19 verify/fix loops:** architecture + supabase removal + backend code + database + nginx & SSL + 3 backend test layers + 3 frontend test layers + system integration + Swagger + Javadoc + API collection + API tests + API performance + production + deployment.
+- **19 readonly auditors:** `architecture-verify-agent`, `supabase-removal-verify-agent`, `jhipster-verify-agent`, `database-verify-agent`, `nginx-verify-agent`, the 6 per-layer test-verify agents, `system-integration-test-verify-agent`, the 5 documentation/API verify agents, `production-standards-agent`, and `deployment-verify-agent`.
+- **Pipeline order:** architecture → **supabase & lovable removal** → backend (JHipster) → database → nginx & SSL (domain + Certbot) → backend tests → frontend tests → system integration tests → Swagger → Javadoc → API collection → API tests → API performance → production → **production deployment (Minikube + Grafana + Nginx + PM2)**.
 - **Graphify:** operators pre-install graphify (`uv tool install graphifyy`); agents query `graphify-out/` first and run `graphify update` after code changes to reduce token use.
 - **Domain at intake:** the user provides **project domain + fleet domain** only; agents derive `ACME_EMAIL` (`admin@<project-domain>` by default), all secrets, fleet URL, and push token (fetched from `/api/fleet-config`).
 - **Secrets auto-generated:** at intake Maya creates a gitignored root `.env` with strong random secrets (PostgreSQL, JWT, registry); no human writes secrets and values are never logged. Downstream agents consume them as `${VAR}` and never hardcode literals.
-- **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend. "Action required" asks (e.g. an external key) surface here without halting the run.
+- **Live progress dashboard:** web-visible from the first agent — early via a static publisher (`http://<server-ip>:8787/agentprogress.html`), then on the domain (`https://<domain>/agentprogress.html`). Maya rewrites `.sunny/web/progress.json` every handoff; read-only, never touches the generated backend. **After deployment:** Grafana `sunny-deployment` dashboard also reads `progress.json` for pipeline + Prometheus metrics for JVM/HTTP — dual view (HTML + Grafana).
 - **Fleet / global dashboard:** every VPS uses the **same** `.cursor/` agents but runs **independently** (own project, domain, `.env`, `RUN_ID`). Each optionally **pushes** progress to a central collector (`.cursor/central/`, deployed once), so all runs show on one global board at `https://<central-domain>/` — one card per run, best-effort, never blocking.
 - **Non-blocking by default:** loops still have a hard iteration cap, but when a loop gives up or an external value is missing, it becomes a `needs-attention`/`actionRequired` **notification** and the pipeline continues; only a hard technical dependency causes a real stop.
 - **Resumable by default:** all state lives on disk (`state.json` + context summaries + `.env` + generated code), checkpointed atomically after every handoff. On (re)invocation Sunny runs a **resume check** (Phase −1): if a prior run is incomplete it skips done stages, re-enters the interrupted one, and continues with counters intact. Every agent is idempotent (patches, never duplicates), so re-running a stage is safe; Docker services auto-restart (`restart: unless-stopped`).
@@ -50,6 +52,7 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 | Family | Base | Verify | Fix |
 |--------|------|--------|-----|
 | architecture | Arjun | Arjun Verify | Arjun Fix |
+| supabase removal | Kiran | Kiran Verify | Kiran Fix |
 | backend build | Vikram | Vikram Verify | Vikram Fix |
 | database | Dhruv | Dhruv Verify | Dhruv Fix |
 | nginx & SSL | Naveen | Naveen Verify | Naveen Fix |
@@ -59,6 +62,12 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 | Swagger / Javadoc | Surya / Jaya | + Verify | + Fix |
 | API collection / tests / performance | Chetan / Tara / Pawan | + Verify | + Fix |
 | production | Prakash | Prakash (audit) | Prakash Fix |
+| deploy platform | Rajesh | — | — |
+| server provision | Suresh | — | — |
+| deploy database | Lakshmi | — | — |
+| deploy backend | Manoj | — | — |
+| deploy edge | Asha | — | — |
+| deploy verify | Om | Om (audit) | Om Fix |
 
 **Singletons:** Sunny (orchestrator) · Maya (context/shared memory) · Deepa (standalone documentation) · Hari (standalone fleet-host — deploys the global dashboard). Full mapping: [`README.md`](README.md#agent-codenames).
 
@@ -66,7 +75,7 @@ Each agent has a human codename; a family shares a base name and its verify/fix 
 
 ## 1. System architecture (pipeline order)
 
-The agents run as an **ordered pipeline**: design the architecture, generate the backend, verify and fix it, harden the database, then generate and verify tests (backend, then frontend), then collective system integration tests (frontend + backend + database together), then the documentation & API stages (Swagger, Javadoc, API collection, API status tests, API performance), then the final production audit that reviews every prior stage and produces a comprehensive report. The Driver (main chat agent) launches each stage via the Task tool, and the Context Agent persists output between every stage. Read top to bottom — generation always precedes verification.
+The agents run as an **ordered pipeline**: design the architecture, **remove Supabase/Lovable from the frontend**, generate the backend, verify and fix it, harden the database, then generate and verify tests (backend, then frontend), then collective system integration tests (frontend + backend + database together), then the documentation & API stages (Swagger, Javadoc, API collection, API status tests, API performance), then the final production audit, then **deploy to the VPS via Minikube with Grafana observability**. The Driver (main chat agent) launches each stage via the Task tool, and the Context Agent persists output between every stage. Read top to bottom — generation always precedes verification.
 
 ```mermaid
 flowchart TB
@@ -75,16 +84,18 @@ flowchart TB
     subgraph pipeline [Execution Pipeline - top to bottom]
         direction TB
         S0["Stage 1 - Architecture & boilerplate<br/>architecture-agent<br/>verify: architecture-verify-agent (readonly)<br/>fix: architecture-fix-agent"]
-        S1["Stage 2 - Generate backend<br/>jhipster-backend-agent"]
-        S2["Stage 3 - Verify backend (readonly)<br/>jhipster-verify-agent<br/>fix: issue-resolution-agent"]
-        SD["Stage 4 - Database hardening<br/>database-agent<br/>verify: database-verify-agent (readonly)<br/>fix: database-fix-agent"]
-        SN["Stage 5 - Nginx & SSL edge<br/>nginx-agent: reverse proxy + domain + Certbot<br/>verify: nginx-verify-agent (readonly)<br/>fix: nginx-fix-agent"]
-        S3["Stage 6 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
-        S4["Stage 7 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
-        SI["Stage 8 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
-        SDOC["Stages 9-13 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
-        S5["Stage 14 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
-        S0 --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5
+        S0b["Stage 2 - Supabase & Lovable removal<br/>supabase-removal-agent<br/>verify: supabase-removal-verify-agent (readonly)<br/>fix: supabase-removal-fix-agent<br/>deletes supabase/ and .lovable/"]
+        S1["Stage 3 - Generate backend<br/>jhipster-backend-agent"]
+        S2["Stage 4 - Verify backend (readonly)<br/>jhipster-verify-agent<br/>fix: issue-resolution-agent"]
+        SD["Stage 5 - Database hardening<br/>database-agent<br/>verify: database-verify-agent (readonly)<br/>fix: database-fix-agent"]
+        SN["Stage 6 - Nginx & SSL edge<br/>nginx-agent: reverse proxy + domain + Certbot<br/>verify: nginx-verify-agent (readonly)<br/>fix: nginx-fix-agent"]
+        S3["Stage 7 - Backend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
+        S4["Stage 8 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
+        SI["Stage 9 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
+        SDOC["Stages 10-14 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
+        S5["Stage 15 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
+        SDEP["Stages 16-22 - Production deployment (VPS)<br/>Minikube + Grafana -> provision -> DB -> backend pods -> Nginx+PM2<br/>verify: deployment-verify-agent (readonly)<br/>fix: deployment-fix-agent"]
+        S0 --> S0b --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5 --> SDEP
     end
 
     Driver -->|launches each stage in order| pipeline
@@ -289,7 +300,16 @@ flowchart TD
     CapA -->|No| AFix[architecture-fix-agent] --> PA3["context-agent<br/>architecture-fix-log.md"] --> AVer
     CapA -->|Yes| Attention["stage = needs-attention<br/>notify + continue if possible<br/>(blocked only on hard dependency)"]
 
-    AApproved -->|Yes| Gen[jhipster-backend-agent]
+    AApproved -->|Yes| SupGen[supabase-removal-agent]
+    SupGen --> PSup1["context-agent<br/>supabase-removal-summary.md"]
+    PSup1 --> SupVer[supabase-removal-verify-agent]
+    SupVer --> PSup2["context-agent<br/>supabase-removal-verify-report.md"]
+    PSup2 --> SupApproved{"lastVerdict ==<br/>'Supabase and Lovable<br/>removal complete.'?"}
+    SupApproved -->|No| CapSup{"supabaseRemovalVerifyIterations<br/>>= 5?"}
+    CapSup -->|No| SupFix[supabase-removal-fix-agent] --> PSup3["context-agent<br/>supabase-removal-fix-log.md"] --> SupVer
+    CapSup -->|Yes| Attention
+
+    SupApproved -->|Yes| Gen[jhipster-backend-agent]
     Gen --> P1["context-agent<br/>backend-summary.md"]
 
     P1 --> Verify[jhipster-verify-agent]
@@ -345,7 +365,15 @@ flowchart TD
     PSat -->|No| CapP{"productionVerifyIterations<br/>>= 5?"}
     CapP -->|No| PFix[production-fix-agent] --> P11["context-agent<br/>production-fix-log.md"] --> Prod
     CapP -->|Yes| Attention
-    PSat -->|Yes| Final(["Final Approval<br/>System is production-ready."])
+    PSat -->|Yes| Deploy["Production deployment<br/>deployment-platform -> provision -> DB -> backend -> edge"]
+    Deploy --> PDep1["context-agent<br/>deployment-*-summary.md"]
+    PDep1 --> DepVer[deployment-verify-agent]
+    DepVer --> PDep2["context-agent<br/>deployment-verify-report.md"]
+    PDep2 --> DepSat{"lastVerdict ==<br/>'Production deployment verified.<br/>System is live.'?"}
+    DepSat -->|No| CapDep{"deploymentVerifyIterations<br/>>= 5?"}
+    CapDep -->|No| DepFix[deployment-fix-agent] --> PDep3["context-agent<br/>deployment-fix-log.md"] --> DepVer
+    CapDep -->|Yes| Attention
+    DepSat -->|Yes| Final(["Final Approval<br/>System is live on domain"])
 ```
 
 ---
@@ -361,11 +389,26 @@ flowchart LR
     G[architecture-agent] --> A[architecture-verify-agent]
     A --> B["context-agent<br/>architecture-verify-report.md"]
     B --> C{"Architecture approved?"}
-    C -->|Yes| Exit([Exit to Backend generation])
+    C -->|Yes| Exit([Exit to Supabase removal])
     C -->|No| D{architectureVerifyIterations<br/>>= 5?}
     D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[architecture-fix-agent]
     E --> F["context-agent<br/>architecture-fix-log.md"]
+    F --> A
+```
+
+### 3.1b Supabase & Lovable removal loop
+
+```mermaid
+flowchart LR
+    G[supabase-removal-agent] --> A[supabase-removal-verify-agent]
+    A --> B["context-agent<br/>supabase-removal-verify-report.md"]
+    B --> C{"Supabase and Lovable<br/>removal complete?"}
+    C -->|Yes| Exit([Exit to Backend generation])
+    C -->|No| D{supabaseRemovalVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>hard-block if Supabase remains])
+    D -->|No| E[supabase-removal-fix-agent]
+    E --> F["context-agent<br/>supabase-removal-fix-log.md"]
     F --> A
 ```
 
@@ -538,12 +581,30 @@ The production agent first runs a **completeness audit of every prior stage** (e
 flowchart LR
     A["production-standards-agent<br/>audits ALL prior outputs<br/>+ comprehensive final report"] --> B["context-agent<br/>production-report.md"]
     B --> C{"lastVerdict ==<br/>'Final approval granted.<br/>System is production-ready.'?"}
-    C -->|Yes| Exit([Final Approval])
+    C -->|Yes| Exit([Exit to Deployment])
     C -->|No| D{productionVerifyIterations<br/>>= 5?}
     D -->|Yes| Stop([Needs attention<br/>continue if possible])
     D -->|No| E[production-fix-agent]
     E --> F["context-agent<br/>production-fix-log.md"]
     F --> A
+```
+
+## 6b. Production deployment loop (detail)
+
+Runs **only after** production approval. Linear stages (Minikube + Grafana → server provisioning → database → backend pods → Nginx + PM2) followed by a verify/fix loop.
+
+```mermaid
+flowchart TB
+    R[deployment-platform-agent<br/>Minikube + Grafana] --> S[server-provision-agent]
+    S --> L[deployment-database-agent]
+    L --> M[deployment-backend-agent<br/>pods per microservice]
+    M --> A[deployment-edge-agent<br/>Nginx + PM2 frontend]
+    A --> V[deployment-verify-agent]
+    V --> OK{"Production deployment<br/>verified?"}
+    OK -->|Yes| Live([System live])
+    OK -->|No| Cap{deploymentVerifyIterations >= 5?}
+    Cap -->|Yes| Stop([Needs attention])
+    Cap -->|No| F[deployment-fix-agent] --> V
 ```
 
 ---
@@ -582,11 +643,12 @@ flowchart TD
 10. **Exact phrase only.** Near-miss verdicts (typos, extra words) never advance; the verify agent is asked to re-emit the exact phrase.
 11. **Resume-safe checkpointing.** Maya writes `state.json`/`progress.json` atomically (temp + rename) after every handoff, marking a stage `active` on entry and `done` only on its exit verdict. If the run is interrupted, Sunny's Phase −1 resume check re-enters the `active` stage with counters intact — so a crash/reboot resumes from the last checkpoint instead of restarting, and never loses a cap or an "action required" item.
 
-### Same mechanism across all seventeen loops
+### Same mechanism across all nineteen loops
 
 | Loop | Verify / audit agent | Fix agent | Counter | Exit phrase |
 |------|----------------------|-----------|---------|-------------|
 | Architecture | `architecture-verify-agent` | `architecture-fix-agent` | `architectureVerifyIterations` | `Architecture approved.` |
+| Supabase removal | `supabase-removal-verify-agent` | `supabase-removal-fix-agent` | `supabaseRemovalVerifyIterations` | `Supabase and Lovable removal complete.` |
 | Backend code | `jhipster-verify-agent` | `issue-resolution-agent` | `backendVerifyIterations` | `No issues found. Backend approved.` |
 | Database | `database-verify-agent` | `database-fix-agent` | `databaseVerifyIterations` | `Database approved.` |
 | Nginx & SSL | `nginx-verify-agent` | `nginx-fix-agent` | `nginxVerifyIterations` | `Nginx and SSL approved.` |
@@ -603,6 +665,7 @@ flowchart TD
 | API tests | `api-test-verify-agent` | `api-test-fix-agent` | `apiTestVerifyIterations` | `API testing requirements satisfied.` |
 | API performance | `api-performance-test-verify-agent` | `api-performance-test-fix-agent` | `apiPerformanceTestVerifyIterations` | `API performance testing requirements satisfied.` |
 | Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
+| Deployment | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
 
 > Each side's three generation agents (unit/integration/functional) run once at the start; then each layer has its own verify/fix loop. On failure the layer's fix agent adds or repairs that layer's tests, then the layer re-verifies — the generators are not re-run.
 
@@ -959,7 +1022,12 @@ stateDiagram-v2
     architecture --> architecture_verify
     architecture_verify --> architecture_fix: not approved
     architecture_fix --> architecture_verify: re-review
-    architecture_verify --> backend: Architecture approved
+    architecture_verify --> supabase_removal: Architecture approved
+
+    supabase_removal --> supabase_removal_verify
+    supabase_removal_verify --> supabase_removal_fix: not complete
+    supabase_removal_fix --> supabase_removal_verify: re-review
+    supabase_removal_verify --> backend: Supabase and Lovable removal complete
 
     backend --> backend_verify
     backend_verify --> issue_resolution: issues found
@@ -998,8 +1066,19 @@ stateDiagram-v2
 
     production --> production_fix: findings
     production_fix --> production: re-audit
-    production --> complete: Final approval granted
+    production --> deployment_platform: Final approval granted
+
+    deployment_platform --> deployment_provision
+    deployment_provision --> deployment_database
+    deployment_database --> deployment_backend
+    deployment_backend --> deployment_edge
+    deployment_edge --> deployment_verify
+    deployment_verify --> deployment_fix: not verified
+    deployment_fix --> deployment_verify: re-audit
+    deployment_verify --> complete: Production deployment verified
     complete --> [*]
+
+    production --> complete: max iterations, mark production needs-attention — deployment may still run with outstanding items
 
     architecture_verify --> backend: max iterations, mark architecture needs-attention if backend can continue
     backend_verify --> database: max iterations, mark backend verification needs-attention if database can continue
@@ -1034,6 +1113,75 @@ stateDiagram-v2
 
 ---
 
+## 11. Production deployment topology (Minikube + Grafana)
+
+Runs **only after** `Final approval granted. System is production-ready.` The VPS hosts the edge (Nginx + PM2 + PostgreSQL); Minikube runs microservices and the observability stack.
+
+```mermaid
+flowchart TB
+    subgraph internet [Internet]
+        User([User browser])
+    end
+
+    subgraph vps [Production VPS host]
+        NGX["Nginx :443 TLS<br/>/ → PM2 frontend<br/>/api → gateway NodePort<br/>/agentprogress.html<br/>/progress.json"]
+        PM2["PM2 — frontend static/SSR"]
+        PG[("PostgreSQL<br/>host — not public")]
+
+        subgraph minikube [Minikube cluster]
+            subgraph sunny_prod [namespace: sunny-prod]
+                GW["Gateway pod :8080<br/>NodePort 30080"]
+                REG["Registry pod"]
+                MS1["Microservice A"]
+                MS2["Microservice B"]
+                SM["ServiceMonitors<br/>/management/prometheus"]
+            end
+            subgraph observability [namespace: observability]
+                PROM["Prometheus"]
+                GRAF["Grafana :30300<br/>or /grafana"]
+            end
+        end
+    end
+
+    User --> NGX
+    NGX --> PM2
+    NGX -->|"proxy /api"| GW
+    GW --> REG
+    GW --> MS1 & MS2
+    MS1 & MS2 & GW --> PG
+    SM --> PROM
+    PROM --> GRAF
+    NGX -->|"progress.json"| GRAF
+    GRAF -->|"Infinity/JSON datasource"| NGX
+```
+
+### Production readiness gates (Om — `deployment-verify-agent`)
+
+| Layer | Requirement |
+|-------|-------------|
+| **Minikube** | Production CPU/RAM profile; all pods Running; probes + limits on every Deployment |
+| **Prometheus** | kube-prometheus-stack healthy; all `sunny-prod` ServiceMonitor targets **UP** |
+| **Grafana** | Admin via K8s Secret; Prometheus datasource green; **Sunny progress.json** panel live; JVM/5xx panels show data |
+| **Backend** | `SPRING_PROFILES_ACTIVE=prod`; distinct ports per `deploy/port-map.md`; health 200/UP |
+| **Edge** | Valid TLS; PM2 online + startup; E2E smoke pass |
+| **Security** | No secrets in git; DB not public; Nginx security headers |
+
+### Key artifacts (`deploy/`)
+
+| Path | Owner agent |
+|------|-------------|
+| `deploy/README.md` | Rajesh |
+| `deploy/helm/kube-prometheus-stack-values.yaml` | Rajesh |
+| `deploy/grafana/provisioning/` | Rajesh |
+| `deploy/minikube/` | Rajesh (skeleton) + Manoj (services) |
+| `deploy/port-map.md` | Rajesh + Manoj |
+| `deploy/scripts/health-check.sh` | Rajesh / Om |
+| `deploy/nginx/`, `deploy/pm2/` | Asha |
+
+**Exit phrase:** `Production deployment verified. System is live.`
+
+---
+
 ## Legend
 
 | Concept | Meaning |
@@ -1044,6 +1192,7 @@ stateDiagram-v2
 | **readonly agent** | Audits and reports only; makes no code changes (architecture-verify, jhipster-verify, database-verify, nginx-verify, the six per-layer test-verify agents, system-integration-test-verify, the five doc/API verify agents, production-standards) |
 | **Exit phrase** | Exact string in `state.json.lastVerdict` that breaks a loop |
 | **Architecture exit** | `Architecture approved.` |
+| **Supabase removal exit** | `Supabase and Lovable removal complete.` |
 | **Backend code exit** | `No issues found. Backend approved.` |
 | **Database exit** | `Database approved.` |
 | **Nginx & SSL exit** | `Nginx and SSL approved.` |
@@ -1052,4 +1201,5 @@ stateDiagram-v2
 | **System integration exit** | `System integration testing requirements satisfied.` |
 | **Doc/API exits** | `Swagger documentation requirements satisfied.` / `Javadoc documentation requirements satisfied.` / `API collection requirements satisfied.` / `API testing requirements satisfied.` / `API performance testing requirements satisfied.` |
 | **Production exit** | `Final approval granted. System is production-ready.` |
-| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`); exceeding it marks the stage `needs-attention` **before** launching the fix agent again and continues wherever technically possible. `phase = blocked` is reserved for a hard dependency that makes the next stage impossible. |
+| **Deployment exit** | `Production deployment verified. System is live.` |
+| **Max iterations** | Default 5 per loop; each loop has its own counter (`architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six `backend/frontend{Unit,Integration,Functional}TestVerifyIterations`; `systemIntegrationTestVerifyIterations`; the five `swagger/javadoc/apiCollection/apiTest/apiPerformanceTestVerifyIterations`; `productionVerifyIterations`; `deploymentVerifyIterations`); exceeding it marks the stage `needs-attention` **before** launching the fix agent again and continues wherever technically possible. `phase = blocked` is reserved for a hard dependency that makes the next stage impossible. |

@@ -21,6 +21,7 @@ Graphify is pre-installed by the operator (`uv tool install graphifyy` → `grap
 
 1. Read **every** `.sunny/context/` file — not just summaries — so you can confirm each prior stage is genuinely complete:
    - `project-context.md`, `architecture-summary.md`, `architecture-verify-report.md`
+   - `supabase-removal-summary.md`, `supabase-removal-verify-report.md`
    - `backend-summary.md`, `verify-report.md`
    - `database-summary.md`, `database-verify-report.md`
    - `nginx-summary.md`, `nginx-verify-report.md`
@@ -38,6 +39,7 @@ Before your own categories, confirm **each previous agent did what it was suppos
 | Stage | Required verdict | Artifact spot-check |
 | --- | --- | --- |
 | Architecture | `Architecture approved.` | blueprint + JDL exist |
+| Supabase removal | `Supabase and Lovable removal complete.` | no `supabase/` or `.lovable/`; REST clients; frontend builds |
 | Backend code | `No issues found. Backend approved.` | gateway + services + registry |
 | Database | `Database approved.` | Liquibase migrations apply on fresh PostgreSQL |
 | Nginx & SSL | `Nginx and SSL approved.` | Nginx config, domain routing, Certbot certs, HTTPS redirect |
@@ -95,7 +97,7 @@ When blocked, your findings are routed to the **production-fix-agent**, which re
 - [ ] **Configuration management:** `application-prod.yml`, config server, env-specific profiles
 - [ ] **Error handling:** global exception handler, ProblemDetails, no stack traces to clients in prod
 - [ ] **Scalability:** stateless services, horizontal scaling possible, DB connection limits sane
-- [ ] **Deployment:** Docker images build, `docker-compose` or K8s manifests complete
+- [ ] **Deployment:** Docker images build; `deploy/minikube/` K8s manifests + `deploy/port-map.md` scaffolded; Actuator `/management/prometheus` enabled for Grafana scrape
 - [ ] **CI/CD:** pipeline builds, tests, and produces artifacts/images
 - [ ] **Database:** Liquibase migrations versioned, backup strategy noted, indexes on hot paths
 
@@ -159,6 +161,7 @@ Produce **one complete report** that consolidates the whole pipeline. This is th
 | Stage | Required verdict present? | Artifacts present? | Complete? |
 |-------|--------------------------|--------------------|-----------|
 | Architecture | yes/no | yes/no | yes/no |
+| Supabase removal | yes/no | yes/no | yes/no |
 | Backend code | yes/no | yes/no | yes/no |
 | Database | yes/no | yes/no | yes/no |
 | Nginx & SSL | yes/no | yes/no | yes/no |
@@ -174,21 +177,22 @@ Pull the key result from each context report so the final report is self-contain
 | # | Stage / report | Verdict | Key metrics / outcome |
 |---|----------------|---------|------------------------|
 | 1 | Architecture (`architecture-verify-report.md`) | Architecture approved. | services, JDL ok |
-| 2 | Backend code (`verify-report.md`) | Backend approved. | API/security/arch/db pass |
-| 3 | Database (`database-verify-report.md`) | Database approved. | migrations apply on fresh PostgreSQL |
-| 4 | Nginx & SSL (`nginx-verify-report.md`) | Nginx and SSL approved. | HTTPS on domain; Certbot renewal dry-run |
-| 5 | Backend unit tests (`backend-unit-test-verify-report.md`) | satisfied | line % / branch % |
-| 6 | Backend integration tests (`backend-integration-test-verify-report.md`) | satisfied | line % / branch % (Testcontainers) |
-| 7 | Backend functional tests (`backend-functional-test-verify-report.md`) | satisfied | line % / branch % (REST) |
-| 8 | Frontend unit tests (`frontend-unit-test-verify-report.md`) | satisfied | line % / branch % |
-| 9 | Frontend integration tests (`frontend-integration-test-verify-report.md`) | satisfied | line % / branch % (MSW) |
-| 10 | Frontend functional tests (`frontend-functional-test-verify-report.md`) | satisfied | journeys / passing |
-| 11 | System integration (`system-integration-test-verify-report.md`) | satisfied | full-stack journeys passing |
-| 12 | Swagger (`swagger-verify-report.md`) | satisfied | endpoints documented n/total |
-| 13 | Javadoc (`javadoc-verify-report.md`) | satisfied | public APIs documented; build clean |
-| 14 | API collection (`api-collection-verify-report.md`) | satisfied | requests n/total; Newman passing/total |
-| 15 | API tests (`api-test-verify-report.md`) | satisfied | endpoints correct-status n/total |
-| 16 | API performance (`api-performance-verify-report.md`) | satisfied | p95 + error rate at 1/10/20/30 |
+| 2 | Supabase removal (`supabase-removal-verify-report.md`) | Supabase and Lovable removal complete. | folders deleted; REST clients |
+| 3 | Backend code (`verify-report.md`) | Backend approved. | API/security/arch/db pass |
+| 4 | Database (`database-verify-report.md`) | Database approved. | migrations apply on fresh PostgreSQL |
+| 5 | Nginx & SSL (`nginx-verify-report.md`) | Nginx and SSL approved. | HTTPS on domain; Certbot renewal dry-run |
+| 6 | Backend unit tests (`backend-unit-test-verify-report.md`) | satisfied | line % / branch % |
+| 7 | Backend integration tests (`backend-integration-test-verify-report.md`) | satisfied | line % / branch % (Testcontainers) |
+| 8 | Backend functional tests (`backend-functional-test-verify-report.md`) | satisfied | line % / branch % (REST) |
+| 9 | Frontend unit tests (`frontend-unit-test-verify-report.md`) | satisfied | line % / branch % |
+| 10 | Frontend integration tests (`frontend-integration-test-verify-report.md`) | satisfied | line % / branch % (MSW) |
+| 11 | Frontend functional tests (`frontend-functional-test-verify-report.md`) | satisfied | journeys / passing |
+| 12 | System integration (`system-integration-test-verify-report.md`) | satisfied | full-stack journeys passing |
+| 13 | Swagger (`swagger-verify-report.md`) | satisfied | endpoints documented n/total |
+| 14 | Javadoc (`javadoc-verify-report.md`) | satisfied | public APIs documented; build clean |
+| 15 | API collection (`api-collection-verify-report.md`) | satisfied | requests n/total; Newman passing/total |
+| 16 | API tests (`api-test-verify-report.md`) | satisfied | endpoints correct-status n/total |
+| 17 | API performance (`api-performance-verify-report.md`) | satisfied | p95 + error rate at 1/10/20/30 |
 
 ### Category results
 | Category | Status | Critical | High | Medium | Low |
@@ -215,13 +219,27 @@ Pull the key result from each context report so the final report is self-contain
 ### Recommendations (non-blocking)
 - {improvements for future iterations}
 
-### Production deployment checklist
-- [ ] Env vars documented
-- [ ] Secrets in vault/env, not repo
-- [ ] DB migrations applied
-- [ ] Health checks passing
-- [ ] Monitoring dashboards ready
-- [ ] Rollback strategy defined
+### Production deployment handoff (for Rajesh → Om)
+
+Before emitting `Final approval granted`, confirm the codebase is **ready for VPS/Minikube deployment**:
+
+- [ ] `deploy/README.md` exists (or will be created by Rajesh) documenting topology
+- [ ] Each microservice Dockerfile builds with prod profile
+- [ ] Spring Actuator: `health`, `prometheus` endpoints exposed in prod (not blocked by security)
+- [ ] `deploy/helm/kube-prometheus-stack-values.yaml` template or equivalent documented
+- [ ] No hardcoded localhost API URLs in frontend prod build path
+- [ ] `architecture-summary.md` port plan sufficient for `deploy/port-map.md`
+
+### Production deployment checklist (post-approval — Om verifies)
+- [ ] Minikube running with production resource profile
+- [ ] kube-prometheus-stack deployed; Prometheus targets UP
+- [ ] Grafana provisioned; Sunny `progress.json` panel live
+- [ ] Every microservice pod Running with probes + resource limits
+- [ ] Host Nginx TLS valid; PM2 frontend online
+- [ ] `deploy/scripts/health-check.sh` exits 0
+- [ ] Env vars documented; secrets in `.env`/K8s only
+- [ ] DB migrations applied; backup strategy noted
+- [ ] Rollback: `kubectl rollout undo` documented in `deploy/README.md`
 
 ### Run guide summary
 1. {condensed start commands}

@@ -14,14 +14,14 @@ A complete, presentation-ready reference for **every agent** in the Sunny multi-
 - **Exit phrase** — the exact string a verify agent emits when its loop is satisfied. The orchestrator matches it literally to advance.
 - **Loop** — generate → verify → fix → re-verify, capped at **5 iterations** per loop before Sunny marks the stage `needs-attention` and continues where possible.
 
-**System totals:** 52 orchestrated agents + 2 standalone (`documentation`, `fleet-host-agent`) · 17 verify/fix loops · 17 readonly auditors.
+**System totals:** 62 orchestrated agents + 2 standalone (`documentation`, `fleet-host-agent`) · 19 verify/fix loops · 19 readonly auditors.
 
 **Pipeline order:**
 
 ```
-Architecture → Backend (JHipster) → Database → Nginx & SSL (domain + Certbot)
+Architecture → Supabase & Lovable removal → Backend (JHipster) → Database → Nginx & SSL (domain + Certbot)
 → Backend tests → Frontend tests → System integration tests → Swagger → Javadoc
-→ API collection → API tests → API performance → Production
+→ API collection → API tests → API performance → Production → Production deployment (Minikube + Grafana)
 ```
 
 ## Graphify (token-efficient context)
@@ -99,7 +99,25 @@ Optional: Certbot email (else `admin@<project-domain>`). **Never** passwords, to
 
 ---
 
-## Stages 2–3 — Backend build & verify (codename family: **Vikram**)
+## Stage 2 — Supabase & Lovable removal (codename family: **Kiran**)
+
+Runs **after** architecture approval and **before** JHipster backend generation. Removes all Supabase and `.lovable` dependencies from the frontend, replaces them with REST API clients aligned to the architecture, and **deletes** the entire `supabase/` and `.lovable/` folders.
+
+### Kiran — Supabase & Lovable Removal Agent (`supabase-removal-agent`) · not readonly
+- Scans the frontend for every Supabase/Lovable touchpoint; builds a REST API client layer; migrates auth to JWT/REST; removes packages and env vars; deletes `supabase/` and `.lovable/` directories.
+- **Reads:** `architecture-summary.md`, `project-context.md`. **Produces:** `supabase-removal-summary.md`.
+
+### Kiran Verify — Supabase Removal Verify Agent (`supabase-removal-verify-agent`) · readonly
+- Confirms zero Supabase/Lovable references, folders deleted, API clients align with architecture, frontend builds.
+- **Reads:** `supabase-removal-summary.md`, `architecture-summary.md`. **Exit phrase:** `Supabase and Lovable removal complete.`
+
+### Kiran Fix — Supabase Removal Fix Agent (`supabase-removal-fix-agent`) · not readonly
+- Closes every verify finding without reintroducing Supabase.
+- **Reads:** `supabase-removal-verify-report.md`. **Produces:** fixes + `supabase-removal-fix-log.md`.
+
+---
+
+## Stages 3–4 — Backend build & verify (codename family: **Vikram**)
 
 ### Vikram — JHipster Backend Agent (`jhipster-backend-agent`) · not readonly
 - Generates the complete **JHipster microservices** backend from the approved blueprint: gateway + services + service registry, PostgreSQL + Liquibase, JWT/OAuth2 + RBAC, Docker, production config. No mock/fake data.
@@ -285,6 +303,39 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 
 ---
 
+## Stages 15–22 — Production deployment (VPS / Minikube)
+
+Runs **only after** `Final approval granted. System is production-ready.` Deploys the live system on the production VPS using **Minikube** for microservices, **Grafana** for observability, host **Nginx** + **PM2** for the edge, and a dedicated **PostgreSQL** instance.
+
+### Rajesh — Deployment Platform Agent (`deployment-platform-agent`) · not readonly
+- Installs/configures **Minikube** (production CPU/RAM profile), **kubectl**, **Helm**; deploys **kube-prometheus-stack** (Prometheus + Grafana); provisions Grafana datasources/dashboards including **Sunny `progress.json`** panel; scaffolds `deploy/minikube/`, `deploy/helm/`, `deploy/grafana/provisioning/`.
+- **Reads:** `production-report.md`, `backend-summary.md`, `architecture-summary.md`. **Produces:** `deployment-platform-summary.md`, `deploy/README.md`.
+
+### Suresh — Server Provisioning Agent (`server-provision-agent`) · not readonly
+- After VPC login, scans frontend/backend and installs all host dependencies: Java, Node/npm, PostgreSQL, Nginx, PM2, Docker, certbot, build tools.
+- **Reads:** `deployment-platform-summary.md`, `backend-summary.md`. **Produces:** `server-provision-summary.md`, `deploy/scripts/provision.sh`.
+
+### Lakshmi — Deployment Database Agent (`deployment-database-agent`) · not readonly
+- Creates production PostgreSQL databases and users. Accepts password from user or generates a strong one (stored in `.env` only); notifies user of username.
+- **Reads:** `server-provision-summary.md`, `database-summary.md`. **Produces:** `deployment-database-summary.md`.
+
+### Manoj — Deployment Backend Agent (`deployment-backend-agent`) · not readonly
+- Builds and deploys gateway + registry + each microservice as **separate Minikube pods** on **distinct ports**; verifies health on every port.
+- **Reads:** `deployment-database-summary.md`, `deployment-platform-summary.md`, `backend-summary.md`. **Produces:** `deployment-backend-summary.md`.
+
+### Asha — Deployment Edge Agent (`deployment-edge-agent`) · not readonly
+- Configures host **Nginx** reverse proxy from user **domain** and ports; issues TLS; starts **frontend via PM2**; connects frontend → gateway → database.
+- **Reads:** `deployment-backend-summary.md`, `nginx-summary.md`, `project-context.md`. **Produces:** `deployment-edge-summary.md`.
+
+### Om — Deployment Verify Agent (`deployment-verify-agent`) · readonly
+- Final **production** audit: Minikube probes/limits, **Prometheus targets UP**, Grafana datasources + Sunny progress panel, every port, TLS, PM2, E2E smoke. Runs `deploy/scripts/health-check.sh`. **Exit phrase:** `Production deployment verified. System is live.`
+
+### Om Fix — Deployment Fix Agent (`deployment-fix-agent`) · not readonly
+- Remediates every deployment verify finding; returns for re-audit.
+- **Reads:** `deployment-verify-report.md`. **Produces:** `deployment-fix-log.md`.
+
+---
+
 ## Standalone (not orchestrated by Sunny)
 
 ### Deepa — Documentation Agent (`documentation`) · not readonly
@@ -305,6 +356,9 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 | Arjun | `architecture-agent` | No | — |
 | Arjun Verify | `architecture-verify-agent` | Yes | `Architecture approved.` |
 | Arjun Fix | `architecture-fix-agent` | No | — |
+| Kiran | `supabase-removal-agent` | No | — |
+| Kiran Verify | `supabase-removal-verify-agent` | Yes | `Supabase and Lovable removal complete.` |
+| Kiran Fix | `supabase-removal-fix-agent` | No | — |
 | Vikram | `jhipster-backend-agent` | No | — |
 | Vikram Verify | `jhipster-verify-agent` | Yes | `No issues found. Backend approved.` |
 | Vikram Fix | `issue-resolution-agent` | No | — |
@@ -352,5 +406,12 @@ Same per-layer structure for the frontend: generate once, then **unit → integr
 | Pawan Fix | `api-performance-test-fix-agent` | No | — |
 | Prakash | `production-standards-agent` | Yes | `Final approval granted. System is production-ready.` |
 | Prakash Fix | `production-fix-agent` | No | — |
+| Rajesh | `deployment-platform-agent` | No | — |
+| Suresh | `server-provision-agent` | No | — |
+| Lakshmi | `deployment-database-agent` | No | — |
+| Manoj | `deployment-backend-agent` | No | — |
+| Asha | `deployment-edge-agent` | No | — |
+| Om | `deployment-verify-agent` | Yes | `Production deployment verified. System is live.` |
+| Om Fix | `deployment-fix-agent` | No | — |
 | Deepa | `documentation` | No | — (standalone) |
 | Hari | `fleet-host-agent` | No | — (standalone; deploys global dashboard) |

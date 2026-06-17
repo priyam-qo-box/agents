@@ -43,6 +43,7 @@ Prefer several **narrow** queries over one broad dump. If a query returns too li
 | Stage / agent family | Start with |
 |----------------------|------------|
 | Architecture (Arjun) | `graphify query "frontend API calls, data models, routes, and auth"` |
+| Supabase removal (Kiran) | `graphify query "supabase, lovable, createClient, and frontend HTTP clients"` |
 | Backend build/verify/fix (Vikram) | `graphify query "microservices, entities, and REST endpoints"` |
 | Database (Dhruv) | `graphify query "entities, tables, relationships, and Liquibase changelogs"` |
 | Nginx & SSL (Naveen) | `graphify query "gateway and frontend hosts, ports, and context paths"` |
@@ -59,6 +60,7 @@ Prefer several **narrow** queries over one broad dump. If a query returns too li
 | API tests (Tara) | `graphify query "endpoints and their expected status codes"` |
 | API performance (Pawan) | `graphify query "hot endpoints and their service/DB dependencies"` |
 | Production (Prakash) | `graphify query "god nodes, security controls, and cross-cutting concerns"` |
+| Deployment (Rajesh→Om) | `graphify query "docker compose, k8s manifests, ports, nginx, and gateway routing"` |
 
 ## Sunny orchestration
 
