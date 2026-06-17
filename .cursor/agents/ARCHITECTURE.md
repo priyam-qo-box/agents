@@ -93,9 +93,14 @@ flowchart TB
         S4["Stage 8 - Frontend tests<br/>per layer: unit, integration, functional<br/>each layer has its own verify (readonly) + fix agent"]
         SI["Stage 9 - System integration tests (collective)<br/>frontend + backend + PostgreSQL together<br/>system-integration-test-agent<br/>verify: system-integration-test-verify-agent (readonly)<br/>fix: system-integration-test-fix-agent"]
         SDOC["Stages 10-14 - Documentation & API<br/>Swagger -> Javadoc -> API collection -> API tests -> API performance<br/>each: generate + verify (readonly) + fix loop"]
-        S5["Stage 15 - Production (readonly audit)<br/>production-standards-agent: audits ALL prior outputs<br/>+ comprehensive final report<br/>fix: production-fix-agent"]
-        SDEP["Stages 16-22 - Production deployment (VPS)<br/>each sub-stage: generate → verify (readonly) → fix<br/>platform → provision → DB → backend → edge → final verify"]
-        S0 --> S0b --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5 --> SDEP
+        S5["Dashboard #16 — Production audit (readonly)<br/>production-standards-agent<br/>fix: production-fix-agent<br/>Exit: Final approval granted. System is production-ready."]
+        S16["Dashboard #17 — Deploy platform<br/>Rajesh: Minikube + kube-prometheus-stack + Grafana<br/>verify (readonly) + fix loop · cap 5"]
+        S17["Dashboard #18 — Server provisioning<br/>Suresh: Java, Node, PG, Nginx, PM2, Docker<br/>verify (readonly) + fix loop · cap 5"]
+        S18["Dashboard #19 — Deploy database<br/>Lakshmi: production PostgreSQL + credentials<br/>verify (readonly) + fix loop · cap 5"]
+        S19["Dashboard #20 — Deploy backend (Minikube)<br/>Manoj: K8s pods, probes, ServiceMonitors<br/>verify (readonly) + fix loop · cap 5"]
+        S20["Dashboard #21 — Deploy edge<br/>Asha: host Nginx TLS + PM2 frontend<br/>verify (readonly) + fix loop · cap 5"]
+        S21["Dashboard #22 — Final deployment verify<br/>Om: full-stack E2E audit (readonly)<br/>fix: deployment-fix-agent · cap 5"]
+        S0 --> S0b --> S1 --> S2 --> SD --> SN --> S3 --> S4 --> SI --> SDOC --> S5 --> S16 --> S17 --> S18 --> S19 --> S20 --> S21
     end
 
     Driver -->|launches each stage in order| pipeline
@@ -279,60 +284,61 @@ flowchart TB
         sSw --> sJd --> sAc --> sAt --> sAp
     end
 
-    subgraph s5 [Stage 14 - Production]
+    subgraph s5 [Dashboard #16 - Production audit]
         direction LR
         PS["production-standards-agent - readonly<br/>• Audits ALL prior stage outputs (do's/don'ts)<br/>• Security + readiness + standards + performance<br/>• Comprehensive final report<br/>• Exit: Final approval granted. System is production-ready."]
         PF["production-fix-agent<br/>• Remediates PR findings<br/>• No control weakening<br/>• Rebuild + run tests<br/>• Returns for re-audit"]
         PS -->|findings| PF --> PS
     end
 
-    subgraph sDep [Stages 16-22 - Production deployment - per-step verify and fix]
-        direction TB
-        subgraph sDp [Stage 16 - Platform Minikube + Grafana]
-            direction LR
-            DP["deployment-platform-agent<br/>• Minikube prod profile<br/>• kube-prometheus-stack<br/>• Grafana provisioning + Sunny dashboard"]
-            DPV["deployment-platform-verify-agent - readonly<br/>• Cluster + Helm + datasources<br/>• Exit: Deployment platform approved."]
-            DPF["deployment-platform-fix-agent"]
-            DP --> DPV -->|issues| DPF --> DPV
-        end
-        subgraph sDs [Stage 17 - Server provisioning]
-            direction LR
-            DS["server-provision-agent<br/>• Java, Node, PG, Nginx, PM2, Docker<br/>• provision.sh idempotent"]
-            DSV["server-provision-verify-agent - readonly<br/>• All tools + prefetch<br/>• Exit: Server provisioning approved."]
-            DSF["server-provision-fix-agent"]
-            DS --> DSV -->|issues| DSF --> DSV
-        end
-        subgraph sDd [Stage 18 - Deploy database]
-            direction LR
-            DD["deployment-database-agent<br/>• Production PostgreSQL<br/>• Credentials in .env only"]
-            DDV["deployment-database-verify-agent - readonly<br/>• DB + migrations + connectivity<br/>• Exit: Deployment database approved."]
-            DDF["deployment-database-fix-agent"]
-            DD --> DDV -->|issues| DDF --> DDV
-        end
-        subgraph sDbk [Stage 19 - Deploy backend]
-            direction LR
-            DBK["deployment-backend-agent<br/>• K8s pods per microservice<br/>• Probes, limits, ServiceMonitors"]
-            DBKV["deployment-backend-verify-agent - readonly<br/>• Pods UP; Prometheus targets<br/>• Exit: Deployment backend approved."]
-            DBKF["deployment-backend-fix-agent"]
-            DBK --> DBKV -->|issues| DBKF --> DBKV
-        end
-        subgraph sDe [Stage 20 - Deploy edge]
-            direction LR
-            DE["deployment-edge-agent<br/>• Nginx TLS + PM2 frontend<br/>• /api /progress.json /grafana"]
-            DEV["deployment-edge-verify-agent - readonly<br/>• Routing + TLS + smoke<br/>• Exit: Deployment edge approved."]
-            DEF["deployment-edge-fix-agent"]
-            DE --> DEV -->|issues| DEF --> DEV
-        end
-        subgraph sDf [Stage 21-22 - Final collective verify]
-            direction LR
-            DFV["deployment-verify-agent - readonly<br/>• Full stack E2E + health-check.sh<br/>• Exit: Production deployment verified. System is live."]
-            DFF["deployment-fix-agent<br/>• Cross-tier remediation"]
-            DFV -->|issues| DFF --> DFV
-        end
-        sDp --> sDs --> sDd --> sDbk --> sDe --> sDf
+    subgraph sDp [Dashboard #17 - Deploy platform Minikube + Grafana]
+        direction LR
+        DP["deployment-platform-agent (Rajesh)<br/>• Minikube prod profile + metrics-server<br/>• kube-prometheus-stack Helm release<br/>• Grafana provisioning + Sunny progress dashboard<br/>• deploy/minikube/ K8s skeleton + port-map.md"]
+        DPV["deployment-platform-verify-agent - readonly<br/>• Cluster Ready; observability pods Running<br/>• Datasources + Sunny dashboard provisioned<br/>• Exit: Deployment platform approved."]
+        DPF["deployment-platform-fix-agent<br/>• Closes Minikube/Helm/Grafana findings"]
+        DP --> DPV -->|issues| DPF --> DPV
     end
 
-    orch --> sArch --> sSup --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5 --> sDep
+    subgraph sDs [Dashboard #18 - Server provisioning]
+        direction LR
+        DS["server-provision-agent (Suresh)<br/>• Scan frontend + backend toolchains<br/>• Java, Maven/Gradle, Node, PostgreSQL<br/>• Nginx, PM2, Docker, certbot, jq<br/>• deploy/scripts/provision.sh idempotent"]
+        DSV["server-provision-verify-agent - readonly<br/>• All required tools at pinned versions<br/>• Prefetch/build smoke passes<br/>• Exit: Server provisioning approved."]
+        DSF["server-provision-fix-agent<br/>• Closes missing/wrong-version tools"]
+        DS --> DSV -->|issues| DSF --> DSV
+    end
+
+    subgraph sDd [Dashboard #19 - Deploy database]
+        direction LR
+        DD["deployment-database-agent (Lakshmi)<br/>• Host PostgreSQL role + per-service DBs<br/>• Password protocol (.env only)<br/>• pg_hba localhost + Minikube only<br/>• Liquibase migrations apply clean"]
+        DDV["deployment-database-verify-agent - readonly<br/>• DB reachable from host + Minikube<br/>• Migrations + no public exposure<br/>• Exit: Deployment database approved."]
+        DDF["deployment-database-fix-agent<br/>• Closes DB connectivity/credential findings"]
+        DD --> DDV -->|issues| DDF --> DDV
+    end
+
+    subgraph sDbk [Dashboard #20 - Deploy backend Minikube]
+        direction LR
+        DBK["deployment-backend-agent (Manoj)<br/>• Build images via minikube docker-env<br/>• Deployment + Service + ServiceMonitor per service<br/>• startup/liveness/readiness probes + limits<br/>• sync-secrets.sh from .env"]
+        DBKV["deployment-backend-verify-agent - readonly<br/>• All pods Running; actuator health green<br/>• Prometheus targets UP in Grafana<br/>• Exit: Deployment backend approved."]
+        DBKF["deployment-backend-fix-agent<br/>• Closes pod/probe/metrics findings"]
+        DBK --> DBKV -->|issues| DBKF --> DBKV
+    end
+
+    subgraph sDe [Dashboard #21 - Deploy edge Nginx + PM2]
+        direction LR
+        DE["deployment-edge-agent (Asha)<br/>• Production frontend build + PM2 ecosystem<br/>• Host Nginx: / → frontend, /api → gateway<br/>• Certbot TLS + /progress.json + /grafana subpath"]
+        DEV["deployment-edge-verify-agent - readonly<br/>• HTTPS smoke; PM2 online; routing correct<br/>• Exit: Deployment edge approved."]
+        DEF["deployment-edge-fix-agent<br/>• Closes Nginx/PM2/TLS/routing findings"]
+        DE --> DEV -->|issues| DEF --> DEV
+    end
+
+    subgraph sDf [Dashboard #22 - Final collective deployment verify]
+        direction LR
+        DFV["deployment-verify-agent (Om) - readonly<br/>• Confirms all five per-step verdicts present<br/>• deploy/scripts/health-check.sh green<br/>• Full stack E2E on live domain<br/>• Exit: Production deployment verified. System is live."]
+        DFF["deployment-fix-agent<br/>• Cross-tier remediation (K8s + host + DB)"]
+        DFV -->|issues| DFF --> DFV
+    end
+
+    orch --> sArch --> sSup --> s12 --> sDb --> sNg --> s3 --> s4 --> sSi --> sDoc --> s5 --> sDp --> sDs --> sDd --> sDbk --> sDe --> sDf
 ```
 
 ---
@@ -550,6 +556,117 @@ flowchart LR
     F --> A
 ```
 
+### 3.5 Production deployment loops (dashboard #17–#22)
+
+Six loops run **in strict order** on the VPS **only after** dashboard **#16** emits `Final approval granted. System is production-ready.` Five loops follow **generate → verify (readonly) → fix**; the sixth is **verify (readonly) → fix** only (no separate generate agent — Om audits the live stack). Each loop has its own `state.json` counter (cap 5). See **§6c** for the full per-stage reference.
+
+#### 3.5.1 Dashboard #17 — Deploy platform (Rajesh)
+
+```mermaid
+flowchart LR
+    G[deployment-platform-agent] --> A[deployment-platform-verify-agent]
+    A --> B["context-agent<br/>deployment-platform-verify-report.md"]
+    B --> C{"Deployment platform approved?"}
+    C -->|Yes| Exit([→ Dashboard #18 Provision])
+    C -->|No| D{deploymentPlatformVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
+    D -->|No| E[deployment-platform-fix-agent]
+    E --> F["context-agent<br/>deployment-platform-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** `lastVerdict == Final approval granted. System is production-ready.`  
+**Key artifacts:** `deploy/minikube/`, `deploy/helm/kube-prometheus-stack-values.yaml`, `deploy/grafana/provisioning/`, `deploy/port-map.md`, `deployment-platform-summary.md`.
+
+#### 3.5.2 Dashboard #18 — Server provisioning (Suresh)
+
+```mermaid
+flowchart LR
+    G[server-provision-agent] --> A[server-provision-verify-agent]
+    A --> B["context-agent<br/>server-provision-verify-report.md"]
+    B --> C{"Server provisioning approved?"}
+    C -->|Yes| Exit([→ Dashboard #19 Database])
+    C -->|No| D{serverProvisionVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
+    D -->|No| E[server-provision-fix-agent]
+    E --> F["context-agent<br/>server-provision-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** `Deployment platform approved.`  
+**Key artifacts:** `deploy/scripts/provision.sh`, `server-provision-summary.md`.
+
+#### 3.5.3 Dashboard #19 — Deploy database (Lakshmi)
+
+```mermaid
+flowchart LR
+    G[deployment-database-agent] --> A[deployment-database-verify-agent]
+    A --> B["context-agent<br/>deployment-database-verify-report.md"]
+    B --> C{"Deployment database approved?"}
+    C -->|Yes| Exit([→ Dashboard #20 Backend])
+    C -->|No| D{deploymentDatabaseVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
+    D -->|No| E[deployment-database-fix-agent]
+    E --> F["context-agent<br/>deployment-database-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** `Server provisioning approved.`  
+**Key artifacts:** `.env` (`POSTGRES_*` keys only — never values in context), `deployment-database-summary.md`.
+
+#### 3.5.4 Dashboard #20 — Deploy backend (Manoj)
+
+```mermaid
+flowchart LR
+    G[deployment-backend-agent] --> A[deployment-backend-verify-agent]
+    A --> B["context-agent<br/>deployment-backend-verify-report.md"]
+    B --> C{"Deployment backend approved?"}
+    C -->|Yes| Exit([→ Dashboard #21 Edge])
+    C -->|No| D{deploymentBackendVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
+    D -->|No| E[deployment-backend-fix-agent]
+    E --> F["context-agent<br/>deployment-backend-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** `Deployment database approved.` + observability stack from #17.  
+**Key artifacts:** `deploy/minikube/` manifests, `deploy/scripts/sync-secrets.sh`, `deployment-backend-summary.md`.
+
+#### 3.5.5 Dashboard #21 — Deploy edge (Asha)
+
+```mermaid
+flowchart LR
+    G[deployment-edge-agent] --> A[deployment-edge-verify-agent]
+    A --> B["context-agent<br/>deployment-edge-verify-report.md"]
+    B --> C{"Deployment edge approved?"}
+    C -->|Yes| Exit([→ Dashboard #22 Final verify])
+    C -->|No| D{deploymentEdgeVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>continue if possible])
+    D -->|No| E[deployment-edge-fix-agent]
+    E --> F["context-agent<br/>deployment-edge-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** `Deployment backend approved.`  
+**Key artifacts:** `deploy/nginx/`, `deploy/pm2/ecosystem.config.cjs`, `deployment-edge-summary.md`.
+
+#### 3.5.6 Dashboard #22 — Final collective verify (Om)
+
+```mermaid
+flowchart LR
+    A[deployment-verify-agent] --> B["context-agent<br/>deployment-verify-report.md"]
+    B --> C{"Production deployment verified.<br/>System is live."}
+    C -->|Yes| Exit([phase: complete])
+    C -->|No| D{deploymentVerifyIterations<br/>>= 5?}
+    D -->|Yes| Stop([Needs attention<br/>complete with outstanding items])
+    D -->|No| E[deployment-fix-agent]
+    E --> F["context-agent<br/>deployment-fix-log.md"]
+    F --> A
+```
+
+**Prerequisite:** All five per-step verdicts recorded (#17–#21). Om **refuses** final approval if any is missing.  
+**Key artifacts:** `deploy/scripts/health-check.sh`, `deployment-verify-report.md`.
+
 ## 4. Backend testing loops (detail)
 
 The three generation agents run **once** in order. Then each layer has its **own verify/fix loop** with its own exit phrase and counter, run in order: unit → integration → functional. Each layer's fix agent only touches that layer.
@@ -685,64 +802,170 @@ flowchart LR
 
 ## 6b. Production deployment loops (detail)
 
-Runs **only after** production approval. **Five** generate → verify → fix loops run **in order** (platform → provision → database → backend → edge), then a **sixth** collective verify/fix loop (Om) audits the full live stack. Each sub-loop has its own exit phrase and counter (cap 5) — same mechanism as database and nginx.
+Runs **only after** dashboard **#16** (`Final approval granted. System is production-ready.`). **Five** generate → verify → fix loops run **in order** on the VPS, then a **sixth** collective verify/fix loop (Om) audits the full live stack before `phase: complete`. Each sub-loop has its own exit phrase and counter (cap 5) — same mechanism as database and nginx.
+
+> **Dashboard numbering:** Stages **#16–#22** in `progress.json` are the production gate plus VPS deployment. Stage **#16** is the production audit (Prakash); stages **#17–#22** are the six deployment steps below. See **§6c** for the full reference table.
 
 ```mermaid
 flowchart TB
-    subgraph L1 [6b.1 Platform - Rajesh]
+    subgraph L1 [6b.1 Dashboard #17 Platform - Rajesh]
         direction LR
         G1[deployment-platform-agent] --> V1[deployment-platform-verify-agent]
         V1 --> C1{"Deployment platform approved?"}
         C1 -->|No| F1[deployment-platform-fix-agent] --> V1
-        C1 -->|Yes| Next1([→ Provision])
+        C1 -->|Yes| Next1([→ #18 Provision])
     end
-    subgraph L2 [6b.2 Provision - Suresh]
+    subgraph L2 [6b.2 Dashboard #18 Provision - Suresh]
         direction LR
         G2[server-provision-agent] --> V2[server-provision-verify-agent]
         V2 --> C2{"Server provisioning approved?"}
         C2 -->|No| F2[server-provision-fix-agent] --> V2
-        C2 -->|Yes| Next2([→ Database])
+        C2 -->|Yes| Next2([→ #19 Database])
     end
-    subgraph L3 [6b.3 Database - Lakshmi]
+    subgraph L3 [6b.3 Dashboard #19 Database - Lakshmi]
         direction LR
         G3[deployment-database-agent] --> V3[deployment-database-verify-agent]
         V3 --> C3{"Deployment database approved?"}
         C3 -->|No| F3[deployment-database-fix-agent] --> V3
-        C3 -->|Yes| Next3([→ Backend])
+        C3 -->|Yes| Next3([→ #20 Backend])
     end
-    subgraph L4 [6b.4 Backend - Manoj]
+    subgraph L4 [6b.4 Dashboard #20 Backend - Manoj]
         direction LR
         G4[deployment-backend-agent] --> V4[deployment-backend-verify-agent]
         V4 --> C4{"Deployment backend approved?"}
         C4 -->|No| F4[deployment-backend-fix-agent] --> V4
-        C4 -->|Yes| Next4([→ Edge])
+        C4 -->|Yes| Next4([→ #21 Edge])
     end
-    subgraph L5 [6b.5 Edge - Asha]
+    subgraph L5 [6b.5 Dashboard #21 Edge - Asha]
         direction LR
         G5[deployment-edge-agent] --> V5[deployment-edge-verify-agent]
         V5 --> C5{"Deployment edge approved?"}
         C5 -->|No| F5[deployment-edge-fix-agent] --> V5
-        C5 -->|Yes| Next5([→ Final verify])
+        C5 -->|Yes| Next5([→ #22 Final verify])
     end
-    subgraph L6 [6b.6 Final collective - Om]
+    subgraph L6 [6b.6 Dashboard #22 Final collective - Om]
         direction LR
         V6[deployment-verify-agent] --> C6{"Production deployment verified.<br/>System is live."}
         C6 -->|No| F6[deployment-fix-agent] --> V6
-        C6 -->|Yes| Live([System live])
+        C6 -->|Yes| Live([phase: complete])
     end
     L1 --> L2 --> L3 --> L4 --> L5 --> L6
 ```
 
 ### Per-step deployment exit phrases
 
-| Step | Generate | Verify (readonly) | Fix | Counter | Exit phrase |
-|------|----------|-------------------|-----|---------|-------------|
-| Platform | `deployment-platform-agent` | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
-| Provision | `server-provision-agent` | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
-| Database | `deployment-database-agent` | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
-| Backend | `deployment-backend-agent` | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
-| Edge | `deployment-edge-agent` | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
-| Final | — | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
+| Dashboard # | Step | Generate | Verify (readonly) | Fix | `phase` values | Counter | Exit phrase |
+|-------------|------|----------|-------------------|-----|----------------|---------|-------------|
+| **#16** | Production gate | — (`production-standards-agent` audits) | `production-standards-agent` | `production-fix-agent` | `production`, `production_fix` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
+| **#17** | Platform | `deployment-platform-agent` | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deployment_platform`, `deployment_platform_verify`, `deployment_platform_fix` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
+| **#18** | Provision | `server-provision-agent` | `server-provision-verify-agent` | `server-provision-fix-agent` | `deployment_provision`, `deployment_provision_verify`, `deployment_provision_fix` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
+| **#19** | Database | `deployment-database-agent` | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deployment_database`, `deployment_database_verify`, `deployment_database_fix` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
+| **#20** | Backend | `deployment-backend-agent` | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deployment_backend`, `deployment_backend_verify`, `deployment_backend_fix` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
+| **#21** | Edge | `deployment-edge-agent` | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deployment_edge`, `deployment_edge_verify`, `deployment_edge_fix` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
+| **#22** | Final | — | `deployment-verify-agent` | `deployment-fix-agent` | `deployment_verify`, `deployment_fix` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
+
+---
+
+## 6c. Dashboard stages #16–#22 — individual reference
+
+Each row is one dashboard stage. Stages **#17–#21** use the standard **generate → verify (readonly) → fix** loop (§7). Stage **#16** is a readonly audit with fix-on-findings. Stage **#22** is verify/fix only — Om confirms the five prior per-step verdicts before granting live status.
+
+### #16 — Production audit (Prakash)
+
+| | |
+|---|---|
+| **Codename** | Prakash (+ Prakash Fix) |
+| **When** | After all doc/API stages (#11–#15) satisfied |
+| **Agents** | `production-standards-agent` (readonly) → `production-fix-agent` on findings |
+| **Exit phrase** | `Final approval granted. System is production-ready.` |
+| **Counter** | `productionVerifyIterations` |
+| **Context artifacts** | `production-report.md`, `production-fix-log.md` |
+| **Audits** | Every prior agent output; security, production readiness, industry standards, performance |
+| **Handoff to** | Dashboard #17 — `deployment-platform-agent` |
+
+### #17 — Deploy platform (Rajesh)
+
+| | |
+|---|---|
+| **Codename** | Rajesh / Rajesh Verify / Rajesh Fix |
+| **When** | Immediately after production approval |
+| **Runtime** | VPS — Minikube cluster + observability namespace |
+| **Generate delivers** | Production Minikube profile; `metrics-server`; namespaces `sunny-prod` + `observability`; `kube-prometheus-stack` via Helm; Grafana datasources + Sunny `progress.json` dashboard under `deploy/grafana/provisioning/`; K8s skeleton per microservice in `deploy/minikube/`; `deploy/port-map.md` |
+| **Verify checks** | Cluster Ready; Helm release healthy; Prometheus + Grafana pods Running; datasource Save & test; Sunny dashboard provisioned; ResourceQuota documented |
+| **Exit phrase** | `Deployment platform approved.` |
+| **Counter** | `deploymentPlatformVerifyIterations` |
+| **Context artifacts** | `deployment-platform-summary.md`, `deployment-platform-verify-report.md`, `deployment-platform-fix-log.md` |
+| **Handoff to** | Dashboard #18 — `server-provision-agent` |
+
+### #18 — Server provisioning (Suresh)
+
+| | |
+|---|---|
+| **Codename** | Suresh / Suresh Verify / Suresh Fix |
+| **When** | After platform approved |
+| **Runtime** | VPS host OS |
+| **Generate delivers** | Idempotent `deploy/scripts/provision.sh`; Java (JHipster version), Maven/Gradle, Node/npm, PostgreSQL server/client, Nginx, PM2, Docker, kubectl/minikube verify, certbot, curl/jq/openssl |
+| **Verify checks** | Every required tool installed at repo-pinned versions; prefetch/build smoke; no secrets in install scripts |
+| **Exit phrase** | `Server provisioning approved.` |
+| **Counter** | `serverProvisionVerifyIterations` |
+| **Context artifacts** | `server-provision-summary.md`, `server-provision-verify-report.md`, `server-provision-fix-log.md` |
+| **Handoff to** | Dashboard #19 — `deployment-database-agent` |
+
+### #19 — Deploy database (Lakshmi)
+
+| | |
+|---|---|
+| **Codename** | Lakshmi / Lakshmi Verify / Lakshmi Fix |
+| **When** | After provisioning approved |
+| **Runtime** | Host PostgreSQL (not in-cluster) |
+| **Generate delivers** | `systemctl enable postgresql`; role + per-microservice databases; password via user input or generated into `.env` only; `pg_hba` restricted to localhost + Minikube CIDR; Liquibase migrations applied |
+| **Verify checks** | `psql` from host and from Minikube pod; migrations clean; no `0.0.0.0/0` exposure; credentials only in `.env` |
+| **Exit phrase** | `Deployment database approved.` |
+| **Counter** | `deploymentDatabaseVerifyIterations` |
+| **Context artifacts** | `deployment-database-summary.md`, `deployment-database-verify-report.md`, `deployment-database-fix-log.md` |
+| **Handoff to** | Dashboard #20 — `deployment-backend-agent` |
+
+### #20 — Deploy backend (Manoj)
+
+| | |
+|---|---|
+| **Codename** | Manoj / Manoj Verify / Manoj Fix |
+| **When** | After deployment database approved + observability stack up |
+| **Runtime** | Minikube namespace `sunny-prod` |
+| **Generate delivers** | Images built with `minikube docker-env`; Deployment + Service + ServiceMonitor per microservice; startup/liveness/readiness probes; CPU/memory requests+limits; `SPRING_PROFILES_ACTIVE=prod`; secrets via `sync-secrets.sh`; gateway NodePort per `port-map.md` |
+| **Verify checks** | All pods Running; actuator health endpoints green; Prometheus targets UP; JVM metrics visible in Grafana |
+| **Exit phrase** | `Deployment backend approved.` |
+| **Counter** | `deploymentBackendVerifyIterations` |
+| **Context artifacts** | `deployment-backend-summary.md`, `deployment-backend-verify-report.md`, `deployment-backend-fix-log.md` |
+| **Handoff to** | Dashboard #21 — `deployment-edge-agent` |
+
+### #21 — Deploy edge (Asha)
+
+| | |
+|---|---|
+| **Codename** | Asha / Asha Verify / Asha Fix |
+| **When** | After deployment backend approved |
+| **Runtime** | Host Nginx + PM2 (frontend) |
+| **Generate delivers** | Production frontend build; PM2 ecosystem + startup; Nginx server block: `/` → frontend, `/api` → gateway NodePort, `/progress.json` + `/grafana/` subpaths; Certbot TLS; HTTP→HTTPS redirect |
+| **Verify checks** | `nginx -t`; HTTPS smoke on domain; PM2 process online; API proxy returns gateway responses; progress dashboard reachable |
+| **Exit phrase** | `Deployment edge approved.` |
+| **Counter** | `deploymentEdgeVerifyIterations` |
+| **Context artifacts** | `deployment-edge-summary.md`, `deployment-edge-verify-report.md`, `deployment-edge-fix-log.md` |
+| **Handoff to** | Dashboard #22 — `deployment-verify-agent` |
+
+### #22 — Final collective verify (Om)
+
+| | |
+|---|---|
+| **Codename** | Om / Om Fix |
+| **When** | After all five per-step deployment verdicts (#17–#21) recorded |
+| **Agents** | `deployment-verify-agent` (readonly) → `deployment-fix-agent` on findings |
+| **Stage 0 gate** | Om refuses final approval if any per-step verdict is missing |
+| **Verify checks** | Full stack: Minikube + Prometheus/Grafana + PostgreSQL + Nginx + PM2; every port in `port-map.md`; `deploy/scripts/health-check.sh` exit 0; end-to-end HTTPS journey on live domain |
+| **Exit phrase** | `Production deployment verified. System is live.` |
+| **Counter** | `deploymentVerifyIterations` |
+| **Context artifacts** | `deployment-verify-report.md`, `deployment-fix-log.md` |
+| **On success** | `phase: complete`; all 22 dashboard stages `done`; live URLs + Grafana + credential key names reported |
 
 ---
 
@@ -802,12 +1025,12 @@ flowchart TD
 | API tests | `api-test-verify-agent` | `api-test-fix-agent` | `apiTestVerifyIterations` | `API testing requirements satisfied.` |
 | API performance | `api-performance-test-verify-agent` | `api-performance-test-fix-agent` | `apiPerformanceTestVerifyIterations` | `API performance testing requirements satisfied.` |
 | Production | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` | `Final approval granted. System is production-ready.` |
-| Deploy platform | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
-| Deploy provision | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
-| Deploy database | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
-| Deploy backend | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
-| Deploy edge | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
-| Deploy final | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
+| Deploy platform (#17) | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` | `Deployment platform approved.` |
+| Deploy provision (#18) | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` | `Server provisioning approved.` |
+| Deploy database (#19) | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` | `Deployment database approved.` |
+| Deploy backend (#20) | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` | `Deployment backend approved.` |
+| Deploy edge (#21) | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` | `Deployment edge approved.` |
+| Deploy final (#22) | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` | `Production deployment verified. System is live.` |
 
 > Each side's three generation agents (unit/integration/functional) run once at the start; then each layer has its own verify/fix loop. On failure the layer's fix agent adds or repairs that layer's tests, then the layer re-verifies — the generators are not re-run.
 

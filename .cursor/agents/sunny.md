@@ -169,17 +169,17 @@ Frontend Input
         API collection:  api-collection-agent → context-agent → api-collection-verify-agent → [loop] api-collection-fix-agent
         API tests:       api-test-agent → context-agent → api-test-verify-agent → [loop] api-test-fix-agent
         API performance: api-performance-test-agent → context-agent → api-performance-test-verify-agent → [loop] api-performance-test-fix-agent
-    → Production (audits all prior outputs + comprehensive final report):
+    → Production (dashboard #16 — audits all prior outputs + comprehensive final report):
         production-standards-agent → context-agent
         → [loop] production-fix-agent → context-agent → production-standards-agent
-    → Production deployment (VPS / Minikube — each sub-stage verify/fix, then final Om loop):
-        Platform:  deployment-platform-agent → context-agent → deployment-platform-verify-agent → [loop] deployment-platform-fix-agent
-        Provision: server-provision-agent → context-agent → server-provision-verify-agent → [loop] server-provision-fix-agent
-        Database:  deployment-database-agent → context-agent → deployment-database-verify-agent → [loop] deployment-database-fix-agent
-        Backend:   deployment-backend-agent → context-agent → deployment-backend-verify-agent → [loop] deployment-backend-fix-agent
-        Edge:      deployment-edge-agent → context-agent → deployment-edge-verify-agent → [loop] deployment-edge-fix-agent
-        Final:     deployment-verify-agent → context-agent → [loop] deployment-fix-agent
-    → Final Approval (system live)
+    → Production deployment (dashboard #17–#22 — VPS / Minikube; each sub-stage: generate → verify → fix; final Om loop verify → fix only):
+        #17 Platform:  deployment-platform-agent → context-agent → deployment-platform-verify-agent → [loop] deployment-platform-fix-agent
+        #18 Provision: server-provision-agent → context-agent → server-provision-verify-agent → [loop] server-provision-fix-agent
+        #19 Database:  deployment-database-agent → context-agent → deployment-database-verify-agent → [loop] deployment-database-fix-agent
+        #20 Backend:   deployment-backend-agent → context-agent → deployment-backend-verify-agent → [loop] deployment-backend-fix-agent
+        #21 Edge:      deployment-edge-agent → context-agent → deployment-edge-verify-agent → [loop] deployment-edge-fix-agent
+        #22 Final:     deployment-verify-agent → context-agent → [loop] deployment-fix-agent
+    → Final Approval (phase: complete — system live)
 ```
 
 ## Loop exit phrases (exact match required)
@@ -211,8 +211,8 @@ Frontend Input
 
 ## Loop guardrails
 
-- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); and `productionVerifyIterations`.
-- Run stages in order: architecture → supabase removal → backend → database → nginx & SSL → backend testing → frontend testing → system integration testing → swagger → javadoc → API collection → API tests → API performance → production → deployment.
+- Max **5 iterations** per loop. Each verify loop has its own counter in `state.json`: `architectureVerifyIterations`; `supabaseRemovalVerifyIterations`; `backendVerifyIterations`; `databaseVerifyIterations`; `nginxVerifyIterations`; the six per-layer test counters (`backendUnitTestVerifyIterations`, `backendIntegrationTestVerifyIterations`, `backendFunctionalTestVerifyIterations`, `frontendUnitTestVerifyIterations`, `frontendIntegrationTestVerifyIterations`, `frontendFunctionalTestVerifyIterations`); `systemIntegrationTestVerifyIterations`; the five documentation/API counters (`swaggerVerifyIterations`, `javadocVerifyIterations`, `apiCollectionVerifyIterations`, `apiTestVerifyIterations`, `apiPerformanceTestVerifyIterations`); `productionVerifyIterations`; and the six deployment counters (`deploymentPlatformVerifyIterations`, `serverProvisionVerifyIterations`, `deploymentDatabaseVerifyIterations`, `deploymentBackendVerifyIterations`, `deploymentEdgeVerifyIterations`, `deploymentVerifyIterations`).
+- Run stages in order: architecture → supabase removal → backend → database → nginx & SSL → backend testing → frontend testing → system integration testing → swagger → javadoc → API collection → API tests → API performance → production (#16) → deploy platform (#17) → provision (#18) → deploy database (#19) → deploy backend (#20) → deploy edge (#21) → final deployment verify (#22).
 - Within a side, verify/fix layers in order: unit → integration → functional.
 - Run backend testing to satisfaction before starting frontend testing; run system integration testing only after both are satisfied. Run the documentation/API stages in order (Swagger first — its spec feeds the API collection and API tests).
 - The production agent must confirm **every** prior stage is complete (do's and don'ts) before its own audit, and produces the comprehensive final report.

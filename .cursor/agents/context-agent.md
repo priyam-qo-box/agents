@@ -124,7 +124,7 @@ Always read and update `state.json` on every invocation:
   "localDashboardUrl": "https://<domain>/agentprogress.html (or early http://<ip>:8787/...)",
   "centralUrl": "https://<central-domain> (fleet collector, or empty if not configured)",
   "workflowStartedAt": "ISO-8601 timestamp set once at intake",
-  "phase": "intake | architecture | architecture_verify | architecture_fix | supabase_removal | supabase_removal_verify | supabase_removal_fix | backend | backend_verify | issue_resolution | database | database_verify | database_fix | nginx | nginx_verify | nginx_fix | testing_backend | testing_frontend | testing_system | swagger | javadoc | api_collection | api_testing | api_performance | production | production_fix | deployment_platform | deployment_provision | deployment_database | deployment_backend | deployment_edge | deployment_verify | deployment_fix | complete | blocked",
+  "phase": "intake | architecture | architecture_verify | architecture_fix | supabase_removal | supabase_removal_verify | supabase_removal_fix | backend | backend_verify | issue_resolution | database | database_verify | database_fix | nginx | nginx_verify | nginx_fix | testing_backend | testing_frontend | testing_system | swagger | javadoc | api_collection | api_testing | api_performance | production | production_fix | deployment_platform | deployment_platform_verify | deployment_platform_fix | deployment_provision | deployment_provision_verify | deployment_provision_fix | deployment_database | deployment_database_verify | deployment_database_fix | deployment_backend | deployment_backend_verify | deployment_backend_fix | deployment_edge | deployment_edge_verify | deployment_edge_fix | deployment_verify | deployment_fix | complete | blocked",
   "architectureVerifyIterations": 0,
   "supabaseRemovalVerifyIterations": 0,
   "backendVerifyIterations": 0,
@@ -315,7 +315,19 @@ Each `phase` value maps to exactly one dashboard stage. Seed `stages[]` from thi
 | 21 | `deployment_edge` | Deploy edge (Nginx + PM2) | `deployment_edge`, `deployment_edge_verify`, `deployment_edge_fix` | 20 |
 | 22 | `deployment_verify` | Final deployment verification | `deployment_verify`, `deployment_fix` | 20 |
 
-> Note `backend` and `backend_verify` are **separate** dashboard stages. The `complete` phase marks `deployment_verify` done (all 22 stages). Use stage status `needs-attention` when a loop is capped/deferred but the pipeline continues; reserve `blocked` / `phase: "blocked"` for a **hard stop** only.
+**Stages #16–#22 (production gate + VPS deployment)** — each uses generate → verify (readonly) → fix except #16 (audit + fix) and #22 (verify + fix only):
+
+| # | Loop | Generate agent | Verify agent (readonly) | Fix agent | `state.json` counter |
+|---|------|----------------|-------------------------|-----------|----------------------|
+| 16 | Production | — | `production-standards-agent` | `production-fix-agent` | `productionVerifyIterations` |
+| 17 | Platform | `deployment-platform-agent` | `deployment-platform-verify-agent` | `deployment-platform-fix-agent` | `deploymentPlatformVerifyIterations` |
+| 18 | Provision | `server-provision-agent` | `server-provision-verify-agent` | `server-provision-fix-agent` | `serverProvisionVerifyIterations` |
+| 19 | Database | `deployment-database-agent` | `deployment-database-verify-agent` | `deployment-database-fix-agent` | `deploymentDatabaseVerifyIterations` |
+| 20 | Backend | `deployment-backend-agent` | `deployment-backend-verify-agent` | `deployment-backend-fix-agent` | `deploymentBackendVerifyIterations` |
+| 21 | Edge | `deployment-edge-agent` | `deployment-edge-verify-agent` | `deployment-edge-fix-agent` | `deploymentEdgeVerifyIterations` |
+| 22 | Final | — | `deployment-verify-agent` | `deployment-fix-agent` | `deploymentVerifyIterations` |
+
+> Note `backend` and `backend_verify` are **separate** dashboard stages. The `complete` phase marks `deployment_verify` done (all 22 stages). Use stage status `needs-attention` when a loop is capped/deferred but the pipeline continues; reserve `blocked` / `phase: "blocked"` for a **hard stop** only. Full per-stage detail: [`ARCHITECTURE.md` §6c](ARCHITECTURE.md#6c-dashboard-stages-1622--individual-reference).
 
 ### How to maintain it
 

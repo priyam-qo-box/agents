@@ -551,11 +551,21 @@ After the exit phrase, proceed to **Phase 5 — Production deployment** (do not 
 
 ## Phase 5 — Production deployment (VPS / Minikube)
 
-Runs **only after** `Final approval granted. System is production-ready.` Each deployment sub-stage follows the **same generate → verify → fix loop** as architecture, database, and nginx: one generate agent, then a readonly verify agent with an exact exit phrase, then a fix agent on failure (cap 5 per loop). A **final** collective verify/fix loop (Om) audits the whole live stack end-to-end before `phase: complete`.
+Runs **only after** `Final approval granted. System is production-ready.` (dashboard **#16**). Stages **#17–#22** deploy to the VPS with the **same generate → verify (readonly) → fix loop** as architecture, database, and nginx: one generate agent, then a readonly verify agent with an exact exit phrase, then a fix agent on failure (cap 5 per loop). Dashboard **#22** is verify/fix only (Om) — no separate generate agent. Do not mark `phase: complete` until Om emits `Production deployment verified. System is live.`
 
 **Production non-negotiables:** Minikube production profile; kube-prometheus-stack; probes + limits on every pod; Grafana + Sunny `progress.json` integration; `deploy/port-map.md`; host Nginx TLS + PM2; `deploy/scripts/health-check.sh` green before Om final approval.
 
-### 5.1 Deployment platform loop (Rajesh)
+| Dashboard # | Sub-phase | Codename | Exit phrase |
+|-------------|-----------|----------|-------------|
+| #16 | Production gate | Prakash | `Final approval granted. System is production-ready.` |
+| #17 | Platform | Rajesh | `Deployment platform approved.` |
+| #18 | Provision | Suresh | `Server provisioning approved.` |
+| #19 | Database | Lakshmi | `Deployment database approved.` |
+| #20 | Backend | Manoj | `Deployment backend approved.` |
+| #21 | Edge | Asha | `Deployment edge approved.` |
+| #22 | Final verify | Om | `Production deployment verified. System is live.` |
+
+### 5.1 Deployment platform loop — dashboard #17 (Rajesh)
 
 **Exit phrase:** `Deployment platform approved.`
 
@@ -572,7 +582,7 @@ repeat:
   9. goto repeat
 ```
 
-### 5.2 Server provisioning loop (Suresh)
+### 5.2 Server provisioning loop — dashboard #18 (Suresh)
 
 **Exit phrase:** `Server provisioning approved.`
 
@@ -589,7 +599,7 @@ repeat:
   9. goto repeat
 ```
 
-### 5.3 Deployment database loop (Lakshmi)
+### 5.3 Deployment database loop — dashboard #19 (Lakshmi)
 
 **Exit phrase:** `Deployment database approved.`
 
@@ -606,7 +616,7 @@ repeat:
   9. goto repeat
 ```
 
-### 5.4 Deployment backend loop (Manoj)
+### 5.4 Deployment backend loop — dashboard #20 (Manoj)
 
 **Exit phrase:** `Deployment backend approved.`
 
@@ -623,7 +633,7 @@ repeat:
   9. goto repeat
 ```
 
-### 5.5 Deployment edge loop (Asha)
+### 5.5 Deployment edge loop — dashboard #21 (Asha)
 
 **Exit phrase:** `Deployment edge approved.`
 
@@ -640,7 +650,7 @@ repeat:
   9. goto repeat
 ```
 
-### 5.6 Final deployment verification loop (Om)
+### 5.6 Final deployment verification loop — dashboard #22 (Om)
 
 **Exit phrase:** `Production deployment verified. System is live.`
 
