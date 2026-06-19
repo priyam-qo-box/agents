@@ -51,11 +51,12 @@ You are **Rajesh Verify** — the **Deployment Platform Verify Agent** in the Su
 - [ ] Grafana pod Running; admin credentials via K8s Secret (not hardcoded in committed YAML)
 - [ ] Grafana NodePort or ingress URL documented in summary + `.env` keys (`GRAFANA_URL`, `PROMETHEUS_URL`)
 - [ ] Prometheus datasource **Save & test = success** in Grafana
+- [ ] **Infinity plugin** installed (`yesoreyeram-infinity-datasource` — `grafana plugins ls` or Grafana UI → Plugins)
+- [ ] SunnyProgress datasource configured with `uid: SunnyProgress` (Infinity → `progress.json` URL)
 
 ### Grafana provisioning (Sunny integration)
 
-- [ ] `deploy/grafana/provisioning/datasources/datasources.yaml` exists; Prometheus URL correct
-- [ ] Sunny progress datasource configured (Infinity/JSON → `progress.json` URL placeholder or real domain)
+- [ ] `deploy/grafana/provisioning/datasources/datasources.yaml` exists; Prometheus URL correct; `uid: SunnyProgress` on Infinity datasource
 - [ ] `deploy/grafana/provisioning/dashboards/sunny/sunny-deployment.json` provisioned
 - [ ] Dashboard loads in Grafana UI (panels exist — may show "no data" until apps deploy)
 

@@ -74,9 +74,9 @@ Each loop: **generate → maya → verify → maya → [fix → maya → verify]
 
 ## Task tool launches
 
-Prefer **codename** `subagent_type` (e.g. `rajesh`, `rajesh-verify`). If the Task tool rejects an unknown type, fall back to the **canonical slug** from the table above.
+**Always use canonical slugs** for Task `subagent_type` (e.g. `deployment-platform-agent`, not `rajesh`). Codename files are for `@rajesh` chat only. See `bunny-orchestrator.mdc` Task launch policy table.
 
-After every generate/fix agent: confirm `graphify update` ran, then launch **maya**.
+After every generate/fix agent: confirm `graphify update` ran, then launch **maya** (`context-agent`).
 
 ## Parallelism
 

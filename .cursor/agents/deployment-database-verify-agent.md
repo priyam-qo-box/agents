@@ -44,8 +44,9 @@ You are **Lakshmi Verify** — the **Deployment Database Verify Agent** in the S
 ### Connectivity
 
 - [ ] `psql` from host succeeds with `.env` credentials
-- [ ] Test connection from a `sunny-prod` pod (or documented equivalent) succeeds
-- [ ] Connection strings in K8s Secrets match Lakshmi's summary
+- [ ] Test connection from a `sunny-prod` pod to **`host.min.internal:5432`** (or documented fallback) succeeds
+- [ ] `.env` has `POSTGRES_HOST=host.min.internal` (Minikube docker driver) — not `localhost` for pod use
+- [ ] Connection strings in K8s Secrets (`sunny-postgres`) match Lakshmi's summary
 
 ## Output for Context Agent
 

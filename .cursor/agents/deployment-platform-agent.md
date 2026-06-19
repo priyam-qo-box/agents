@@ -148,6 +148,7 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
 `deploy/helm/kube-prometheus-stack-values.yaml` must:
 
 - Enable **Grafana** with `admin.existingSecret` or env from K8s Secret (not hardcoded password).
+- Install **yesoreyeram-infinity-datasource** plugin (in `kube-prometheus-stack-values.yaml` `grafana.plugins`) for Sunny `progress.json` panels.
 - Enable **Prometheus** with `serviceMonitorSelectorNilUsesHelmValues: false` so ServiceMonitors in `sunny-prod` are picked up.
 - Set retention and resource limits appropriate to VPS disk/RAM.
 - Expose Grafana via **NodePort** (e.g. `30300`) or Ingress path `/grafana` — document URL in summary.
@@ -196,11 +197,12 @@ kubectl get servicemonitor -n sunny-prod
 ## Required workflow
 
 1. **Detect OS**; **install** Minikube, kubectl, Helm, Docker if missing — **do not ask permission**; batch non-interactive package installs; verify each tool.
-2. **Start Minikube** with production resource profile; verify `kubectl cluster-info`.
-3. **Deploy kube-prometheus-stack**; configure Grafana admin secret.
-4. **Scaffold** `deploy/minikube/`, `deploy/helm/`, `deploy/grafana/provisioning/`, `deploy/port-map.md`, `deploy/scripts/sync-secrets.sh`.
-5. **Provision Sunny + JHipster Grafana dashboards**; verify Prometheus scrapes and Grafana datasources healthy.
-6. **Document** all URLs, kubectl context, and operator runbook in `deploy/README.md`.
+2. **Apply** `deploy/minikube/namespace.yaml` and `resource-quota.yaml`; confirm namespaces exist.
+3. **Run** `./deploy/scripts/sync-secrets.sh` **before** Helm install (creates `grafana-admin` in `observability` from `.env`).
+4. **Start Minikube** with production resource profile; verify `kubectl cluster-info`.
+5. **Deploy kube-prometheus-stack** with `deploy/helm/kube-prometheus-stack-values.yaml` (Infinity plugin enabled).
+6. **Complete** `deploy/port-map.md`, ServiceMonitor skeletons, Grafana provisioning; verify Prometheus + Infinity datasource.
+7. **Document** all URLs, kubectl context, and operator runbook in `deploy/README.md`.
 
 ## Output for Context Agent
 

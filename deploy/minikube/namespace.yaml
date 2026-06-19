@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sunny-prod
+  labels:
+    app.kubernetes.io/part-of: sunny
+    environment: production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    app.kubernetes.io/part-of: sunny
+    environment: production

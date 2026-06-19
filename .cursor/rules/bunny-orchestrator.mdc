@@ -5,11 +5,38 @@ alwaysApply: false
 
 # Bunny Orchestrator Playbook
 
-When the user invokes **Bunny** (e.g. `/bunny`, `@bunny`, "Bunny, deploy to VPS"), you act as the **Bunny Deployment Orchestrator**. Coordinate **only dashboard stages #16–#22**. Use the **Task** tool with **codename** subagents (`rajesh`, `suresh`, …). Never assume cross-agent memory — state lives in `.sunny/context/` via **maya** (`context-agent`).
+When the user invokes **Bunny** (e.g. `/bunny`, `@bunny`, "Bunny, deploy to VPS"), you act as the **Bunny Deployment Orchestrator**. Coordinate **only dashboard stages #16–#22**. Launch agents via the **Task** tool using **canonical slugs** (below). Never assume cross-agent memory — state lives in `.sunny/context/` via **maya** (`context-agent`).
+
+## Task launch policy (canonical slugs — required)
+
+Codename files (`rajesh.md`, etc.) are for **`@rajesh` chat invocation** only. The Task tool **`subagent_type` must always use the canonical slug** — custom codenames are not guaranteed to register in Task.
+
+| User-facing name | Task `subagent_type` (use this) |
+|------------------|----------------------------------|
+| Maya | `context-agent` |
+| Prakash | `production-standards-agent` |
+| Prakash Fix | `production-fix-agent` |
+| Rajesh | `deployment-platform-agent` |
+| Rajesh Verify | `deployment-platform-verify-agent` |
+| Rajesh Fix | `deployment-platform-fix-agent` |
+| Suresh | `server-provision-agent` |
+| Suresh Verify | `server-provision-verify-agent` |
+| Suresh Fix | `server-provision-fix-agent` |
+| Lakshmi | `deployment-database-agent` |
+| Lakshmi Verify | `deployment-database-verify-agent` |
+| Lakshmi Fix | `deployment-database-fix-agent` |
+| Manoj | `deployment-backend-agent` |
+| Manoj Verify | `deployment-backend-verify-agent` |
+| Manoj Fix | `deployment-backend-fix-agent` |
+| Asha | `deployment-edge-agent` |
+| Asha Verify | `deployment-edge-verify-agent` |
+| Asha Fix | `deployment-edge-fix-agent` |
+| Om | `deployment-verify-agent` |
+| Om Fix | `deployment-fix-agent` |
+
+Speak to the user with codenames (Rajesh); launch Task with slugs (`deployment-platform-agent`).
 
 ## Codename → file → canonical slug
-
-Launch Task with the **codename** first; fall back to canonical slug if needed.
 
 | Codename | Invoke | Canonical slug | readonly |
 |----------|--------|----------------|----------|
@@ -67,12 +94,12 @@ User-facing speech: always use codenames (Rajesh, not deployment-platform-agent)
 
 ```
 repeat:
-  1. Task prakash (readonly) — full prior-context audit
-  2. Task maya → production-report.md (or production-fix-log on fix cycles)
+  1. Task production-standards-agent (readonly) — full prior-context audit
+  2. Task context-agent → production-report.md (or production-fix-log on fix cycles)
   3. if lastVerdict == exit phrase → break to Phase 2
   4. if productionVerifyIterations >= 5 → needs-attention; continue if user overrides
-  5. Task prakash-fix
-  6. Task maya → production-fix-log.md
+  5. Task production-fix-agent
+  6. Task context-agent → production-fix-log.md
   7. goto repeat
 ```
 
@@ -84,15 +111,16 @@ Skip Phase 1 if stage `production` already `done` with correct `lastVerdict`.
 **Counter:** `deploymentPlatformVerifyIterations`
 
 ```
-1. Task rajesh
-2. Task maya → deployment-platform-summary.md
 repeat:
-  3. Task rajesh-verify (readonly)
-  4. Task maya → deployment-platform-verify-report.md
+  1. Task deployment-platform-agent
+  2. Task context-agent → deployment-platform-summary.md
+repeat:
+  3. Task deployment-platform-verify-agent (readonly)
+  4. Task context-agent → deployment-platform-verify-report.md
   5. if lastVerdict == exit phrase → break to Phase 3
   6. if deploymentPlatformVerifyIterations >= 5 → needs-attention; continue if possible
-  7. Task rajesh-fix
-  8. Task maya → deployment-platform-fix-log.md
+  7. Task deployment-platform-fix-agent
+  8. Task context-agent → deployment-platform-fix-log.md
   9. goto repeat
 ```
 
@@ -101,28 +129,28 @@ repeat:
 **Exit phrase:** `Server provisioning approved.`  
 **Counter:** `serverProvisionVerifyIterations`
 
-Same loop pattern: `suresh` → maya → `suresh-verify` → [ `suresh-fix` ] → re-verify.
+Same loop pattern: `server-provision-agent` → `context-agent` → `server-provision-verify-agent` → [ `server-provision-fix-agent` ] → re-verify.
 
 ## Phase 4 — Deploy database (dashboard #19, Lakshmi)
 
 **Exit phrase:** `Deployment database approved.`  
 **Counter:** `deploymentDatabaseVerifyIterations`
 
-Loop: `lakshmi` → maya → `lakshmi-verify` → [ `lakshmi-fix` ].
+Loop: `deployment-database-agent` → `context-agent` → `deployment-database-verify-agent` → [ `deployment-database-fix-agent` ].
 
 ## Phase 5 — Deploy backend (dashboard #20, Manoj)
 
 **Exit phrase:** `Deployment backend approved.`  
 **Counter:** `deploymentBackendVerifyIterations`
 
-Loop: `manoj` → maya → `manoj-verify` → [ `manoj-fix` ].
+Loop: `deployment-backend-agent` → `context-agent` → `deployment-backend-verify-agent` → [ `deployment-backend-fix-agent` ].
 
 ## Phase 6 — Deploy edge (dashboard #21, Asha)
 
 **Exit phrase:** `Deployment edge approved.`  
 **Counter:** `deploymentEdgeVerifyIterations`
 
-Loop: `asha` → maya → `asha-verify` → [ `asha-fix` ].
+Loop: `deployment-edge-agent` → `context-agent` → `deployment-edge-verify-agent` → [ `deployment-edge-fix-agent` ].
 
 ## Phase 7 — Final verify (dashboard #22, Om)
 
@@ -131,12 +159,12 @@ Loop: `asha` → maya → `asha-verify` → [ `asha-fix` ].
 
 ```
 repeat:
-  1. Task om (readonly) — confirm all five per-step verdicts #17–#21 present
-  2. Task maya → deployment-verify-report.md
+  1. Task deployment-verify-agent (readonly) — confirm all five per-step verdicts #17–#21 present
+  2. Task context-agent → deployment-verify-report.md
   3. if lastVerdict == exit phrase → phase complete; all 22 stages done
   4. if deploymentVerifyIterations >= 5 → needs-attention; complete with outstanding list
-  5. Task om-fix
-  6. Task maya → deployment-fix-log.md
+  5. Task deployment-fix-agent
+  6. Task context-agent → deployment-fix-log.md
   7. goto repeat
 ```
 

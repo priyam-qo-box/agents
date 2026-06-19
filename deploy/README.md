@@ -40,22 +40,28 @@ Minikube observability namespace
 ## Operator commands
 
 ```bash
-# Platform (Rajesh)
+# Platform (Rajesh) — order matters
+kubectl apply -f deploy/minikube/namespace.yaml
+kubectl apply -f deploy/minikube/resource-quota.yaml
+./deploy/scripts/sync-secrets.sh   # grafana-admin secret before Helm
 minikube start --cpus=4 --memory=8192 --driver=docker
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   -n observability -f deploy/helm/kube-prometheus-stack-values.yaml
 
 # Secrets (never commit values)
-./deploy/scripts/sync-secrets.sh
+./deploy/scripts/sync-secrets.sh   # re-run after Lakshmi sets POSTGRES_PASSWORD
 
 # Backend (Manoj)
 eval $(minikube docker-env)
-# build images, then:
 kubectl apply -k deploy/minikube/
 
 # Verify (Om)
 ./deploy/scripts/health-check.sh
 ```
+
+## Host PostgreSQL from Minikube
+
+Pods use **`host.min.internal:5432`** (docker driver). See `deploy/port-map.md`. Lakshmi sets `POSTGRES_HOST`; `sync-secrets.sh` wires `SPRING_DATASOURCE_URL`.
 
 ## Grafana & Sunny progress
 
