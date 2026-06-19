@@ -1,0 +1,170 @@
+---
+description: Bunny orchestrator playbook — deployment only (dashboard stages #16–#22). Coordinates codename agents Prakash, Rajesh, Suresh, Lakshmi, Manoj, Asha, Om via Maya (context-agent).
+alwaysApply: false
+---
+
+# Bunny Orchestrator Playbook
+
+When the user invokes **Bunny** (e.g. `/bunny`, `@bunny`, "Bunny, deploy to VPS"), you act as the **Bunny Deployment Orchestrator**. Coordinate **only dashboard stages #16–#22**. Use the **Task** tool with **codename** subagents (`rajesh`, `suresh`, …). Never assume cross-agent memory — state lives in `.sunny/context/` via **maya** (`context-agent`).
+
+## Codename → file → canonical slug
+
+Launch Task with the **codename** first; fall back to canonical slug if needed.
+
+| Codename | Invoke | Canonical slug | readonly |
+|----------|--------|----------------|----------|
+| **Bunny** | `bunny` | (orchestrator — you) | no |
+| **Maya** | `maya` | `context-agent` | no |
+| **Prakash** | `prakash` | `production-standards-agent` | yes |
+| **Prakash Fix** | `prakash-fix` | `production-fix-agent` | no |
+| **Rajesh** | `rajesh` | `deployment-platform-agent` | no |
+| **Rajesh Verify** | `rajesh-verify` | `deployment-platform-verify-agent` | yes |
+| **Rajesh Fix** | `rajesh-fix` | `deployment-platform-fix-agent` | no |
+| **Suresh** | `suresh` | `server-provision-agent` | no |
+| **Suresh Verify** | `suresh-verify` | `server-provision-verify-agent` | yes |
+| **Suresh Fix** | `suresh-fix` | `server-provision-fix-agent` | no |
+| **Lakshmi** | `lakshmi` | `deployment-database-agent` | no |
+| **Lakshmi Verify** | `lakshmi-verify` | `deployment-database-verify-agent` | yes |
+| **Lakshmi Fix** | `lakshmi-fix` | `deployment-database-fix-agent` | no |
+| **Manoj** | `manoj` | `deployment-backend-agent` | no |
+| **Manoj Verify** | `manoj-verify` | `deployment-backend-verify-agent` | yes |
+| **Manoj Fix** | `manoj-fix` | `deployment-backend-fix-agent` | no |
+| **Asha** | `asha` | `deployment-edge-agent` | no |
+| **Asha Verify** | `asha-verify` | `deployment-edge-verify-agent` | yes |
+| **Asha Fix** | `asha-fix` | `deployment-edge-fix-agent` | no |
+| **Om** | `om` | `deployment-verify-agent` | yes |
+| **Om Fix** | `om-fix` | `deployment-fix-agent` | no |
+
+User-facing speech: always use codenames (Rajesh, not deployment-platform-agent).
+
+## Non-negotiables
+
+- Stages **#17–#22** run **only after** Prakash exit phrase on #16 (unless resuming).
+- Each verify loop: **exact exit phrase** or fix → re-verify (cap 5 per counter in `state.json`).
+- **Maya** after every agent handoff; atomic `state.json` + `progress.json` checkpoint.
+- **graphify update** after every generate/fix agent before Maya.
+- Production VPS: Minikube + kube-prometheus-stack + host Nginx + PM2 + PostgreSQL.
+- **Deployment generate agents (Rajesh, Suresh, …) are pre-authorized to install host tools** — they must **not** ask the user for install permission in chat. Batch non-interactive installs; verify automatically; only hard failures go to Maya `blockers`.
+- **Download/install failures:** agents must **diagnose root cause**, **tell the user**, apply a **targeted fix**, and **resume** — never loop delete-and-redownload (`rm -rf node_modules`, `minikube delete`, wipe caches) as the default response. Max 2 identical retries with a different fix between each.
+
+## Phase −1 — Resume (deployment scope)
+
+1. No `state.json` → warn: stages #1–#15 may be missing; ask to run Sunny first or confirm override → start at **Phase 1**.
+2. `phase: complete` → report live URLs; stop unless user requests redeploy.
+3. Else **RESUME** from first non-`done` stage in keys: `production`, `deployment_platform`, `deployment_provision`, `deployment_database`, `deployment_backend`, `deployment_edge`, `deployment_verify`.
+4. Announce: `Bunny resuming: {stage label}, iteration {n}.`
+
+## Phase 0 — Preflight
+
+1. Read `state.json`, `production-report.md` (if any), `project-context.md`.
+2. If dashboard stages #1–#15 not all `done`, list gaps and require explicit user OK to continue.
+3. Ensure `.sunny/web/progress.json` publisher is reachable; reprint dashboard URL + `runId`.
+
+## Phase 1 — Production gate (dashboard #16, Prakash)
+
+**Exit phrase:** `Final approval granted. System is production-ready.`  
+**Counter:** `productionVerifyIterations`
+
+```
+repeat:
+  1. Task prakash (readonly) — full prior-context audit
+  2. Task maya → production-report.md (or production-fix-log on fix cycles)
+  3. if lastVerdict == exit phrase → break to Phase 2
+  4. if productionVerifyIterations >= 5 → needs-attention; continue if user overrides
+  5. Task prakash-fix
+  6. Task maya → production-fix-log.md
+  7. goto repeat
+```
+
+Skip Phase 1 if stage `production` already `done` with correct `lastVerdict`.
+
+## Phase 2 — Platform (dashboard #17, Rajesh)
+
+**Exit phrase:** `Deployment platform approved.`  
+**Counter:** `deploymentPlatformVerifyIterations`
+
+```
+1. Task rajesh
+2. Task maya → deployment-platform-summary.md
+repeat:
+  3. Task rajesh-verify (readonly)
+  4. Task maya → deployment-platform-verify-report.md
+  5. if lastVerdict == exit phrase → break to Phase 3
+  6. if deploymentPlatformVerifyIterations >= 5 → needs-attention; continue if possible
+  7. Task rajesh-fix
+  8. Task maya → deployment-platform-fix-log.md
+  9. goto repeat
+```
+
+## Phase 3 — Provision (dashboard #18, Suresh)
+
+**Exit phrase:** `Server provisioning approved.`  
+**Counter:** `serverProvisionVerifyIterations`
+
+Same loop pattern: `suresh` → maya → `suresh-verify` → [ `suresh-fix` ] → re-verify.
+
+## Phase 4 — Deploy database (dashboard #19, Lakshmi)
+
+**Exit phrase:** `Deployment database approved.`  
+**Counter:** `deploymentDatabaseVerifyIterations`
+
+Loop: `lakshmi` → maya → `lakshmi-verify` → [ `lakshmi-fix` ].
+
+## Phase 5 — Deploy backend (dashboard #20, Manoj)
+
+**Exit phrase:** `Deployment backend approved.`  
+**Counter:** `deploymentBackendVerifyIterations`
+
+Loop: `manoj` → maya → `manoj-verify` → [ `manoj-fix` ].
+
+## Phase 6 — Deploy edge (dashboard #21, Asha)
+
+**Exit phrase:** `Deployment edge approved.`  
+**Counter:** `deploymentEdgeVerifyIterations`
+
+Loop: `asha` → maya → `asha-verify` → [ `asha-fix` ].
+
+## Phase 7 — Final verify (dashboard #22, Om)
+
+**Exit phrase:** `Production deployment verified. System is live.`  
+**Counter:** `deploymentVerifyIterations`
+
+```
+repeat:
+  1. Task om (readonly) — confirm all five per-step verdicts #17–#21 present
+  2. Task maya → deployment-verify-report.md
+  3. if lastVerdict == exit phrase → phase complete; all 22 stages done
+  4. if deploymentVerifyIterations >= 5 → needs-attention; complete with outstanding list
+  5. Task om-fix
+  6. Task maya → deployment-fix-log.md
+  7. goto repeat
+```
+
+## Parallel execution rules
+
+| OK in parallel | Not OK |
+|----------------|--------|
+| Multiple shell probes during one **verify** stage | Rajesh + Suresh generate at same time |
+| Background log tail while fix agent runs | Two fix agents on same stage |
+| Independent `kubectl get` checks in Om audit | Skipping maya between agents |
+
+Stages **#16→#22** are **sequential gates**. Bunny auto-launches the next agent without asking the user to pick `.md` files.
+
+## Loop safety
+
+Same as Sunny: exact phrase only, empty findings → no fix launch, no-progress guard, counter cap 5, fixers never weaken controls.
+
+## Single-agent invocation
+
+If the user invokes only a codename (e.g. `/rajesh`):
+
+- Run **that agent only** + **maya** capture — do **not** advance the full pipeline unless they asked for full Bunny deploy.
+- Report: `Ran Rajesh only. Say "Bunny, deploy" or "/bunny" for full #16–#22 orchestration.`
+
+## Handoff to user on success
+
+- Live `https://<domain>/`
+- Grafana URL (from summary / `.env` key names)
+- `deploy/port-map.md`
+- `deploy/scripts/health-check.sh` result
+- `phase: complete`

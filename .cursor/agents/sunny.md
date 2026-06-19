@@ -121,15 +121,15 @@ Every agent has a human codename. A family shares a base name; its verify/fix va
 | Chetan (API collection) | Chetan — `api-collection-agent` | Chetan Verify — `api-collection-verify-agent` | Chetan Fix — `api-collection-fix-agent` |
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
-| Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
-| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | — | — |
-| Suresh (server provision) | Suresh — `server-provision-agent` | — | — |
-| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | — | — |
-| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | — | — |
-| Asha (deploy edge) | Asha — `deployment-edge-agent` | — | — |
-| Om (deploy verify) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
+| Prakash (production) | — | Prakash — `production-standards-agent` / `@prakash` | Prakash Fix — `production-fix-agent` / `@prakash-fix` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` / `@rajesh` | Rajesh Verify — `deployment-platform-verify-agent` / `@rajesh-verify` | Rajesh Fix — `deployment-platform-fix-agent` / `@rajesh-fix` |
+| Suresh (server provision) | Suresh — `server-provision-agent` / `@suresh` | Suresh Verify — `server-provision-verify-agent` / `@suresh-verify` | Suresh Fix — `server-provision-fix-agent` / `@suresh-fix` |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` / `@lakshmi` | Lakshmi Verify — `deployment-database-verify-agent` / `@lakshmi-verify` | Lakshmi Fix — `deployment-database-fix-agent` / `@lakshmi-fix` |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` / `@manoj` | Manoj Verify — `deployment-backend-verify-agent` / `@manoj-verify` | Manoj Fix — `deployment-backend-fix-agent` / `@manoj-fix` |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` / `@asha` | Asha Verify — `deployment-edge-verify-agent` / `@asha-verify` | Asha Fix — `deployment-edge-fix-agent` / `@asha-fix` |
+| Om (deploy verify) | — | Om — `deployment-verify-agent` / `@om` | Om Fix — `deployment-fix-agent` / `@om-fix` |
 
-**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host once on the fleet domain).
+**Singletons:** Sunny — `sunny` (full pipeline orchestrator) · **Bunny** — `bunny` (deployment-only orchestrator, stages #16–#22) · Maya — `context-agent` / `@maya` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host once on the fleet domain).
 
 ## Workflow you enforce
 

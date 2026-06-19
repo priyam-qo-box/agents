@@ -121,15 +121,29 @@ Every agent has a human codename. A family shares a base name and its verify/fix
 | Chetan (API collection) | Chetan — `api-collection-agent` | Chetan Verify — `api-collection-verify-agent` | Chetan Fix — `api-collection-fix-agent` |
 | Tara (API tests) | Tara — `api-test-agent` | Tara Verify — `api-test-verify-agent` | Tara Fix — `api-test-fix-agent` |
 | Pawan (API performance) | Pawan — `api-performance-test-agent` | Pawan Verify — `api-performance-test-verify-agent` | Pawan Fix — `api-performance-test-fix-agent` |
-| Prakash (production) | — | Prakash — `production-standards-agent` | Prakash Fix — `production-fix-agent` |
-| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` | Rajesh Verify — `deployment-platform-verify-agent` | Rajesh Fix — `deployment-platform-fix-agent` |
-| Suresh (server provision) | Suresh — `server-provision-agent` | Suresh Verify — `server-provision-verify-agent` | Suresh Fix — `server-provision-fix-agent` |
-| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` | Lakshmi Verify — `deployment-database-verify-agent` | Lakshmi Fix — `deployment-database-fix-agent` |
-| Manoj (deploy backend) | Manoj — `deployment-backend-agent` | Manoj Verify — `deployment-backend-verify-agent` | Manoj Fix — `deployment-backend-fix-agent` |
-| Asha (deploy edge) | Asha — `deployment-edge-agent` | Asha Verify — `deployment-edge-verify-agent` | Asha Fix — `deployment-edge-fix-agent` |
-| Om (deploy final) | — | Om — `deployment-verify-agent` | Om Fix — `deployment-fix-agent` |
+| Prakash (production) | — | Prakash — `production-standards-agent` / `@prakash` | Prakash Fix — `production-fix-agent` / `@prakash-fix` |
+| Rajesh (deploy platform) | Rajesh — `deployment-platform-agent` / `@rajesh` | Rajesh Verify — `deployment-platform-verify-agent` / `@rajesh-verify` | Rajesh Fix — `deployment-platform-fix-agent` / `@rajesh-fix` |
+| Suresh (server provision) | Suresh — `server-provision-agent` / `@suresh` | Suresh Verify — `server-provision-verify-agent` / `@suresh-verify` | Suresh Fix — `server-provision-fix-agent` / `@suresh-fix` |
+| Lakshmi (deploy database) | Lakshmi — `deployment-database-agent` / `@lakshmi` | Lakshmi Verify — `deployment-database-verify-agent` / `@lakshmi-verify` | Lakshmi Fix — `deployment-database-fix-agent` / `@lakshmi-fix` |
+| Manoj (deploy backend) | Manoj — `deployment-backend-agent` / `@manoj` | Manoj Verify — `deployment-backend-verify-agent` / `@manoj-verify` | Manoj Fix — `deployment-backend-fix-agent` / `@manoj-fix` |
+| Asha (deploy edge) | Asha — `deployment-edge-agent` / `@asha` | Asha Verify — `deployment-edge-verify-agent` / `@asha-verify` | Asha Fix — `deployment-edge-fix-agent` / `@asha-fix` |
+| Om (deploy final) | — | Om — `deployment-verify-agent` / `@om` | Om Fix — `deployment-fix-agent` / `@om-fix` |
 
-**Singletons:** Sunny — `sunny` (orchestrator) · Maya — `context-agent` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
+**Singletons:** Sunny — `sunny` (full-pipeline orchestrator) · **Bunny** — `bunny` (deployment-only orchestrator, dashboard #16–#22) · Maya — `context-agent` / `@maya` (shared memory) · Deepa — `documentation` (standalone) · Hari — `fleet-host-agent` (standalone; deploys the global dashboard host).
+
+### Codename aliases (`@rajesh`, `/suresh`, …)
+
+Long slug names (`deployment-platform-agent`) are hard to invoke. **Codename files** in `.cursor/agents/` map human names to the canonical agents:
+
+| Invoke | File | Canonical agent |
+|--------|------|-----------------|
+| `@bunny` / `/bunny` | `bunny.md` | Deployment orchestrator (stages #16–#22) |
+| `@maya` / `/maya` | `maya.md` | `context-agent` |
+| `@rajesh` / `/rajesh` | `rajesh.md` | `deployment-platform-agent` |
+| `@rajesh-verify` | `rajesh-verify.md` | `deployment-platform-verify-agent` |
+| `@suresh` … `@om-fix` | `suresh.md` … `om-fix.md` | matching `deployment-*` / `server-provision-*` slugs |
+
+Playbook: [`.cursor/rules/bunny-orchestrator.mdc`](../rules/bunny-orchestrator.mdc). Say **"Bunny, deploy"** or **`/bunny`** for full auto-orchestration; **`/rajesh`** alone runs only Rajesh (+ Maya capture).
 
 ---
 
